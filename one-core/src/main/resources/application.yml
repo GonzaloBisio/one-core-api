@@ -1,0 +1,77 @@
+spring:
+  application:
+    name: one-core
+  
+  # Database configuration
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    default-schema: ${TENANT_SCHEMA}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 10000
+      max-lifetime: 2000000
+      connection-timeout: 30000
+      leak-detection-threshold: 5000
+  
+  # JPA/Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: validate
+      multi_tenancy: SCHEMA
+      multi_tenant_connection_provider: com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider
+      tenant_identifier_resolver: com.one.core.config.multitenancy.JwtTenantIdentifierResolver
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: ${TENANT_SCHEMA}
+        hbm2ddl:
+          auto: validate
+  
+  # Flyway configuration
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    schemas: ${TENANT_SCHEMA:public}
+    default-schema: ${TENANT_SCHEMA:public}
+
+
+
+# Server configuration
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET}
+  expiration.ms: 86400000 # 24 hours in milliseconds
+  issuer: one-core
+  header: Authorization
+  prefix: Bearer
+
+# Logging
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    com.one.core: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+    doc-expansion: none
