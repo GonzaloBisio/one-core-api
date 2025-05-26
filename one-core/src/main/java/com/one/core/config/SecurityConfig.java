@@ -17,15 +17,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true) // Habilita @Secured, @RolesAllowed
+@EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true)
 public class SecurityConfig {
 
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    // Si tienes un AuthenticationEntryPoint personalizado para manejar errores 401
-    // @Autowired
-    // private JwtAuthenticationEntryPoint unauthorizedHandler;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -40,21 +36,19 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                .cors(cors -> cors.disable()) // Configura CORS apropiadamente para producción
-                .csrf(csrf -> csrf.disable()) // Deshabilitar CSRF para APIs stateless
-                // .exceptionHandling(exceptionHandling ->
-                //      exceptionHandling.authenticationEntryPoint(unauthorizedHandler) // Manejador para 401
-                // )
+                .cors(cors -> cors.disable())
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(sessionManagement ->
-                        sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Sesiones stateless para JWT
+                        sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/api/auth/**").permitAll() // Endpoints de autenticación públicos
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Swagger UI
-                        .anyRequest().authenticated() // Todas las demás rutas requieren autenticación
+                        // CAMBIO AQUÍ: Quita "/api" de las rutas de requestMatchers
+                        .requestMatchers("/auth/**").permitAll() // Para /api/auth/**
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll() // Para /api/swagger-ui/** etc.
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated()
                 );
 
-        // Añade tu filtro JWT antes del filtro estándar de Spring Security
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

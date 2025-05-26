@@ -4,21 +4,26 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Objects;
 
 public class UserPrincipal implements UserDetails {
-    private final Long id;
+    private final Long id; // ID del SystemUser
     private final String username;
     private final String password;
-    private final String tenantId; // Para almacenar el nombre del esquema
+    private final String tenantSchemaName;    // Nombre del esquema del Tenant (antes llamado tenantId aquí)
+    private final Long tenantDbId;          // NUEVO: ID de la BD del Tenant
+    private final String tenantCompanyName; // NUEVO: Nombre de la compañía del Tenant
     private final Collection<? extends GrantedAuthority> authorities;
 
-    public UserPrincipal(Long id, String username, String password, String tenantId, Collection<? extends GrantedAuthority> authorities) {
+    public UserPrincipal(Long id, String username, String password,
+                         String tenantSchemaName, Long tenantDbId, String tenantCompanyName,
+                         Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.password = password;
-        this.tenantId = tenantId;
+        this.tenantSchemaName = tenantSchemaName;
+        this.tenantDbId = tenantDbId;
+        this.tenantCompanyName = tenantCompanyName;
         this.authorities = authorities;
     }
 
@@ -26,8 +31,17 @@ public class UserPrincipal implements UserDetails {
         return id;
     }
 
-    public String getTenantId() {
-        return tenantId;
+    public String getTenantSchemaName() { // Renombrado de getTenantId() para claridad
+        return tenantSchemaName;
+    }
+
+    public String getTenantCompanyName() { // NUEVO getter
+        return tenantCompanyName;
+    }
+
+
+    public Long getTenantDbId() { // NUEVO getter
+        return tenantDbId;
     }
 
     @Override

@@ -36,25 +36,30 @@ public class JwtTokenProvider {
         this.key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    public String generateToken(Authentication authentication, String tenantId) {
-        // Si usas un UserDetails personalizado, ajústalo aquí:
-        // UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        String username = authentication.getName(); // O userPrincipal.getUsername();
+    public String generateToken(Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+
+        String username = userPrincipal.getUsername();
+        String tenantSchemaName = userPrincipal.getTenantSchemaName();
+        Long tenantDbId = userPrincipal.getTenantDbId();
+        String tenantCompanyName = userPrincipal.getTenantCompanyName();
 
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
-        List<String> roles = authentication.getAuthorities().stream()
+        List<String> roles = userPrincipal.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
         return Jwts.builder()
-                .setSubject(username) // O userPrincipal.getId().toString() si prefieres ID
-                .claim("tenantId", tenantId) // ¡IMPORTANTE!
+                .setSubject(username)
+                .claim("tenantSchema", tenantSchemaName)
+                .claim("tenantDbId", tenantDbId)
+                .claim("tenantName", tenantCompanyName)
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -63,15 +68,16 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
-    public String getTenantIdFromJWT(String token) {
-        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
-        return claims.get("tenantId", String.class);
-    }
 
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromJWT(String token) {
         Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
         return claims.get("roles", List.class);
+    }
+
+    public String getTenantSchemaFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return claims.get("tenantSchema", String.class);
     }
 
 

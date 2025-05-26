@@ -1,9 +1,10 @@
-package com.one.core.application.security;// package com.one.core.application.security;
-// ... imports ...
+package com.one.core.application.security;
+
 import com.one.core.domain.model.admin.SystemUser;
-import com.one.core.domain.model.admin.Tenant; // Asegúrate que usa tu Tenant actualizado
+import com.one.core.domain.model.admin.Tenant;
+import com.one.core.domain.model.enums.SystemRole; // IMPORTA TU ENUM
 import com.one.core.domain.repository.admin.SystemUserRepository;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -21,7 +23,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     private SystemUserRepository systemUserRepository;
 
     @Override
-    @Transactional()
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         SystemUser systemUser = systemUserRepository.findByUsername(username)
                 .orElseThrow(() ->
@@ -29,24 +31,55 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         Tenant tenant = systemUser.getTenant();
         if (tenant == null) {
-            // Esto no debería pasar si tenant_id es NOT NULL y la FK está bien
             throw new UsernameNotFoundException("User " + username + " is not associated with a valid tenant.");
         }
 
-        String tenantSchemaName = tenant.getSchemaName(); // <--- CAMBIO AQUÍ
+        String tenantSchema = tenant.getSchemaName(); // Nombre del esquema
+        Long tenantDatabaseId = tenant.getId();        // ID de la BD del tenant
+        String companyName = tenant.getCompanyName();  // Nombre de la compañía
 
-        if (tenantSchemaName == null || tenantSchemaName.trim().isEmpty()) {
+        if (tenantSchema == null || tenantSchema.trim().isEmpty()) {
             throw new UsernameNotFoundException("Tenant schema name not found for user " + username);
         }
+        if (tenantDatabaseId == null) {
+            throw new UsernameNotFoundException("Tenant DB ID not found for user " + username);
+        }
+        if (companyName == null || companyName.trim().isEmpty()) {
+            throw new UsernameNotFoundException("Tenant company name not found for user " + username);
+        }
 
-        // Roles: Placeholder por ahora. Implementaremos la carga real de roles del tenant más adelante.
-        List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_TENANT_USER"));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        SystemRole userSystemRole = systemUser.getSystemRole();
+
+        if (userSystemRole == null) {
+            // Esto no debería pasar si la columna system_role es NOT NULL
+            throw new IllegalStateException("SystemUser " + username + " has no system role defined.");
+        }
+
+        // Asignar roles de Spring Security basados en el SystemRole del enum
+        switch (userSystemRole) {
+            case SUPER_ADMIN:
+                authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
+                break;
+            case TENANT_ADMIN:
+                authorities.add(new SimpleGrantedAuthority("ROLE_TENANT_ADMIN"));
+                break;
+            case TENANT_USER:
+                authorities.add(new SimpleGrantedAuthority("ROLE_TENANT_USER"));
+                break;
+            default:
+
+                break;
+        }
+
 
         return new UserPrincipal(
                 systemUser.getId(),
                 systemUser.getUsername(),
                 systemUser.getPassword(),
-                tenantSchemaName, // Pasa el nombre del esquema aquí
+                tenantSchema,
+                tenantDatabaseId,
+                companyName,
                 authorities
         );
     }

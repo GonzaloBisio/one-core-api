@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/auth")
 public class AuthController {
 
     @Autowired
@@ -38,12 +38,7 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Extrae el tenantId del UserPrincipal (que fue cargado por CustomUserDetailsService)
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        String tenantId = userPrincipal.getTenantId();
-
-        // Genera el token JWT incluyendo el tenantId
-        String jwt = tokenProvider.generateToken(authentication, tenantId);
+        String jwt = tokenProvider.generateToken(authentication);
         return ResponseEntity.ok(new LoginResponseDTO(jwt));
     }
 }

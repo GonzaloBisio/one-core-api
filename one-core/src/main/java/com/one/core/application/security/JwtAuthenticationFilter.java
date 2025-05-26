@@ -52,11 +52,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
-                String tenantId = tokenProvider.getTenantIdFromJWT(jwt); // ¡IMPORTANTE!
+                String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt);
                 List<String> roles = tokenProvider.getRolesFromJWT(jwt);
 
-                // Establece el tenantId en el TenantContext ANTES de cualquier operación de BD
-                TenantContext.setCurrentTenant(tenantId);
+                TenantContext.setCurrentTenant(tenantSchema);
+
 
                 // Construye la lista de GrantedAuthority a partir de los roles del token
                 List<GrantedAuthority> authorities = roles.stream()
@@ -73,7 +73,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                logger.debug("User '{}' authenticated with tenant '{}' and roles {}", username, tenantId, roles);
+                logger.debug("User '{}' authenticated with tenant '{}' and roles {}", username, tenantSchema, roles);
             }
         } catch (Exception ex) {
             logger.error("Could not set user authentication in security context", ex);
@@ -82,7 +82,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
-            // Limpia el TenantContext después de que la solicitud haya sido procesada
             TenantContext.clear();
         }
     }

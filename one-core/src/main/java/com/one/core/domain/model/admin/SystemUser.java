@@ -1,5 +1,6 @@
 package com.one.core.domain.model.admin;
 
+import com.one.core.domain.model.enums.SystemRole;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -31,6 +32,10 @@ public class SystemUser {
     private String lastName;
 
     private boolean activo = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "system_role", length = 50, nullable = false)
+    private SystemRole systemRole;
 
     @ManyToOne(fetch = FetchType.LAZY) // Carga LAZY es buena práctica
     @JoinColumn(name = "tenant_id", nullable = false)

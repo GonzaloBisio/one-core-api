@@ -17,6 +17,7 @@ CREATE TABLE public.system_users (
                                      last_name VARCHAR(100),
                                      activo BOOLEAN DEFAULT TRUE,
                                      tenant_id BIGINT NOT NULL,
+                                     system_role VARCHAR(50) NOT NULL DEFAULT 'TENANT_USER',
                                      CONSTRAINT fk_tenant
                                          FOREIGN KEY(tenant_id)
                                              REFERENCES public.tenants(id)
