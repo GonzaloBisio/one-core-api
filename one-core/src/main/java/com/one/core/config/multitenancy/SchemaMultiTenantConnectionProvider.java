@@ -1,13 +1,14 @@
+// src/main/java/com/one/core/config/multitenancy/SchemaMultiTenantConnectionProvider.java
 package com.one.core.config.multitenancy;
 
 import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Autowired; // Necesario para el constructor
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
+import javax.sql.DataSource; // O jakarta.sql.DataSource
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -15,15 +16,17 @@ import java.sql.Statement;
 @Component("multiTenantConnectionProvider")
 public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectionProvider<String> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SchemaMultiTenantConnectionProvider.class);
+    private static final Logger logger = LoggerFactory.getLogger(SchemaMultiTenantConnectionProvider.class);
     private final DataSource dataSource;
+    private final String defaultTenantSchema; // El campo ahora es final
 
-    @Value("${spring.datasource.default-schema}")
-    private String defaultTenantSchema;
-
+    // Inyectar DataSource y defaultTenantSchema a través del constructor
     @Autowired
-    public SchemaMultiTenantConnectionProvider(DataSource dataSource) {
+    public SchemaMultiTenantConnectionProvider(DataSource dataSource,
+                                               @Value("${TENANT_SCHEMA}") String defaultTenantSchema) { // O @Value("${TENANT_SCHEMA:public}")
         this.dataSource = dataSource;
+        this.defaultTenantSchema = defaultTenantSchema;
+        logger.error("!!!!!!!! BEAN CREADO Y CONFIGURADO: SchemaMultiTenantConnectionProvider. Default Schema: '{}'", this.defaultTenantSchema);
     }
 
     @Override
@@ -39,50 +42,37 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
         final Connection connection = getAnyConnection();
+        logger.info("!!!!!!!! SCHEMA_MCP: Received tenantIdentifier: '{}' to set search_path.", tenantIdentifier);
         try (Statement statement = connection.createStatement()) {
-            // Para PostgreSQL, cambia el search_path al esquema del tenant.
-            // Asegúrate de sanitizar tenantIdentifier si es necesario, aunque aquí debería ser seguro
-            // ya que proviene de tu lógica interna (JWT/TenantContext).
-            String sql = String.format("SET search_path TO %s", tenantIdentifier);
+            String sql = String.format("SET search_path TO \"%s\"", tenantIdentifier.replace("\"", "\"\""));
+            logger.info("!!!!!!!! SCHEMA_MCP: Executing SQL: [{}]", sql);
             statement.execute(sql);
-            LOGGER.debug("Switched to schema: {}", tenantIdentifier);
+            logger.info("!!!!!!!! SCHEMA_MCP: Successfully switched search_path to: '{}'", tenantIdentifier);
         } catch (SQLException e) {
-            LOGGER.error("Could not switch to schema [{}]: {}", tenantIdentifier, e.getMessage());
+            logger.error("!!!!!!!! SCHEMA_MCP: ERROR switching schema to [{}]: {}", tenantIdentifier, e.getMessage(), e);
             throw new SQLException("Could not switch to schema " + tenantIdentifier, e);
         }
         return connection;
     }
 
-
     @Override
     public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
-            // Vuelve al esquema por defecto (o público) al liberar la conexión.
-            // Esto es importante para que el pool de conexiones no quede "contaminado"
-            // con el search_path de un tenant específico para la siguiente vez que se use `getAnyConnection`.
-            String sql = String.format("SET search_path TO %s", defaultTenantSchema);
+            String sql = String.format("SET search_path TO \"%s\"", this.defaultTenantSchema.replace("\"", "\"\""));
+            logger.debug("SchemaMultiTenantConnectionProvider - Resetting search_path to: {}", this.defaultTenantSchema);
             statement.execute(sql);
-            LOGGER.debug("Reset schema to: {}", defaultTenantSchema);
         } catch (SQLException e) {
-            LOGGER.error("Could not reset schema for tenant [{}]: {}", tenantIdentifier, e.getMessage());
-            // No relanzar la excepción aquí para permitir que la conexión se cierre.
+            logger.error("SchemaMultiTenantConnectionProvider - Could not reset schema to default [{}]: {}", this.defaultTenantSchema, e.getMessage(), e);
         } finally {
             connection.close();
         }
     }
 
+    // ... (supportsAggressiveRelease, isUnwrappableAs, unwrap sin cambios) ...
     @Override
-    public boolean supportsAggressiveRelease() {
-        return true; // Permite la liberación agresiva de conexiones
-    }
-
+    public boolean supportsAggressiveRelease() { return true; }
     @Override
-    public boolean isUnwrappableAs(Class<?> unwrapType) {
-        return false;
-    }
-
+    public boolean isUnwrappableAs(Class<?> unwrapType) { return false; }
     @Override
-    public <T> T unwrap(Class<T> unwrapType) {
-        return null;
-    }
+    public <T> T unwrap(Class<T> unwrapType) { return null; }
 }

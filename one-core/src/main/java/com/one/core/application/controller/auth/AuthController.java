@@ -3,7 +3,6 @@ package com.one.core.application.controller.auth;
 import com.one.core.application.dto.auth.LoginRequestDTO;
 import com.one.core.application.dto.auth.LoginResponseDTO;
 import com.one.core.application.security.JwtTokenProvider;
-import com.one.core.application.security.UserPrincipal; // Tu UserDetails personalizado
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;

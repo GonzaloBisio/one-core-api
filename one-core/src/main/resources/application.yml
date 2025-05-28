@@ -1,13 +1,15 @@
 spring:
+  devtools:
+    restart:
+      enabled: false # Bien, para evitar reinicios mientras configuras.
   application:
     name: one-core
-  
+
   # Database configuration
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    default-schema: ${TENANT_SCHEMA}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -16,11 +18,11 @@ spring:
       max-lifetime: 2000000
       connection-timeout: 30000
       leak-detection-threshold: 5000
-  
+
   # JPA/Hibernate
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none # Esto le dice a Hibernate que no toque el schema.
       multi_tenancy: SCHEMA
       multi_tenant_connection_provider: com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider
       tenant_identifier_resolver: com.one.core.config.multitenancy.JwtTenantIdentifierResolver
@@ -28,20 +30,21 @@ spring:
     properties:
       hibernate:
         format_sql: true
-        default_schema: ${TENANT_SCHEMA}
-        hbm2ddl:
-          auto: validate
-  
+        # Esta es la propiedad que Hibernate usa para saber el schema por defecto
+        # si una entidad no lo especifica y no hay un contexto de tenant activo.
+        # Con tu variable de entorno TENANT_SCHEMA=public, esto se resolverá a 'public'.
+      # default_schema: ${TENANT_SCHEMA} # <--- Comenta o elimina esta línea temporalmente
+
   # Flyway configuration
   flyway:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 1
-    locations: classpath:db/migration
-    schemas: ${TENANT_SCHEMA:public}
-    default-schema: ${TENANT_SCHEMA:public}
-
-
+    # Flyway gestionará las migraciones para el schema 'public'
+    # usando los scripts de esta ubicación.
+    locations: classpath:db/migration/public
+    schemas: ${TENANT_SCHEMA:public} # Flyway aplicará migraciones al schema 'public'.
+    default-schema: ${TENANT_SCHEMA:public} # La tabla de historial de Flyway (flyway_schema_history) irá en 'public'.
 
 # Server configuration
 server:
@@ -49,8 +52,8 @@ server:
 
 # JWT Configuration
 jwt:
-  secret: ${JWT_SECRET}
-  expiration.ms: 86400000 # 24 hours in milliseconds
+  secret: ${JWT_SECRET} # Asegúrate de que sea un secreto fuerte.
+  expiration.ms: 86400000
   issuer: one-core
   header: Authorization
   prefix: Bearer
@@ -62,6 +65,8 @@ logging:
     org.springframework: INFO
     com.one.core: DEBUG
     org.hibernate.SQL: DEBUG
+    com.one.core.config.multitenancy.JwtTenantIdentifierResolver: TRACE # Ya tienes esto para el resolver
+    com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider: TRACE # AÑADIDO/ASEGURADO
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
 
 # OpenAPI Configuration

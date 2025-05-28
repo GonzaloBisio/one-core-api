@@ -52,28 +52,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
-                String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt);
-                List<String> roles = tokenProvider.getRolesFromJWT(jwt);
+                String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt); // O el nombre de tu método
+
+                // USA EL LOGGER
+                logger.debug("JwtAuthenticationFilter - Extracted tenantSchema: '{}' for user: '{}' from JWT.", tenantSchema, username);
 
                 TenantContext.setCurrentTenant(tenantSchema);
+                logger.debug("JwtAuthenticationFilter - TenantContext set to: '{}'", tenantSchema);
 
 
-                // Construye la lista de GrantedAuthority a partir de los roles del token
-                List<GrantedAuthority> authorities = roles.stream()
+                List<GrantedAuthority> authorities = tokenProvider.getRolesFromJWT(jwt).stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
-                // Crea el objeto de autenticación.
-                // No estamos cargando UserDetails desde la BD aquí, confiamos en el JWT.
-                // Si necesitas UserDetails completos (ej. para verificar isEnabled, isLocked),
-                // deberías usar el userDetailsService.
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(username, null, authorities);
-
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                logger.debug("User '{}' authenticated with tenant '{}' and roles {}", username, tenantSchema, roles);
+                logger.debug("JwtAuthenticationFilter - User '{}' authenticated. SecurityContext updated.", username);
             }
         } catch (Exception ex) {
             logger.error("Could not set user authentication in security context", ex);
@@ -82,6 +78,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         } finally {
+            System.out.println("JwtAuthenticationFilter - Clearing TenantContext for: " + TenantContext.getCurrentTenant()); // LOG
             TenantContext.clear();
         }
     }
