@@ -17,18 +17,17 @@ public class TenantUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Opcional: si quieres un vínculo directo al SystemUser global
-    // @Column(name = "system_user_id", unique = true)
-    // private Long systemUserId;
-
     @Column(nullable = false, unique = true, length = 100)
     private String username; // Username dentro del tenant, puede ser el mismo que el SystemUser
 
     @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(name = "full_name", length = 200)
-    private String fullName;
+    @Column(name = "name", length = 100)
+    private String name;
+
+    @Column(name = "last_name", length = 100)
+    private String last_name;
 
     @Column(name = "is_active", nullable = false, columnDefinition = "BOOLEAN DEFAULT TRUE")
     private boolean isActive = true;

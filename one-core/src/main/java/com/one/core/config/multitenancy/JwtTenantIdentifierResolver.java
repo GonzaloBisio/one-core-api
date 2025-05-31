@@ -16,16 +16,13 @@ public class JwtTenantIdentifierResolver implements CurrentTenantIdentifierResol
     // Inyectar a través del constructor
     public JwtTenantIdentifierResolver(@Value("${TENANT_SCHEMA}") String defaultTenant) { // O @Value("${TENANT_SCHEMA:public}") si quieres un default en código
         this.defaultTenant = defaultTenant;
-        logger.error("!!!!!!!! BEAN CREADO Y CONFIGURADO: JwtTenantIdentifierResolver. Default Tenant: '{}'", this.defaultTenant);
     }
 
     @Override
     public String resolveCurrentTenantIdentifier() {
         String tenantIdFromContext = TenantContext.getCurrentTenant();
-        logger.info("!!!!!!!! JWT_TENANT_RESOLVER: Tenant from Context: '{}'", tenantIdFromContext);
         String resolvedTenant = (tenantIdFromContext != null && !tenantIdFromContext.trim().isEmpty()) ?
                 tenantIdFromContext : this.defaultTenant; // Usa el campo inicializado en el constructor
-        logger.info("!!!!!!!! JWT_TENANT_RESOLVER: Resolved to: '{}'. (Default was: '{}')", resolvedTenant, this.defaultTenant);
         return resolvedTenant;
     }
 

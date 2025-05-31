@@ -1,27 +1,41 @@
 package com.one.core.application.controller.tenant.supplier;
 
 import com.one.core.application.dto.tenant.supplier.SupplierDTO;
+import com.one.core.application.dto.tenant.supplier.SupplierFilterDTO;
+import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.domain.service.tenant.supplier.SupplierService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/suppliers")
-@PreAuthorize("hasRole('TENANT_USER')")
+@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN')")
 public class SupplierController {
 
+    private final SupplierService supplierService;
+
     @Autowired
-    private SupplierService supplierService;
+    public SupplierController(SupplierService supplierService) {
+        this.supplierService = supplierService;
+    }
 
     @GetMapping
-    public ResponseEntity<List<SupplierDTO>> getAllSuppliers() {
-        return ResponseEntity.ok(supplierService.getAllSuppliers());
+    public ResponseEntity<PageableResponse<SupplierDTO>> getAllSuppliers(
+            SupplierFilterDTO filterDTO,
+            @PageableDefault(size = 10, sort = "name", direction = Sort.Direction.ASC)
+            Pageable pageable
+    ) {
+        Page<SupplierDTO> supplierPage = supplierService.getAllSuppliers(filterDTO, pageable);
+        PageableResponse<SupplierDTO> customResponse = new PageableResponse<>(supplierPage);
+        return ResponseEntity.ok(customResponse);
     }
 
     @GetMapping("/{id}")

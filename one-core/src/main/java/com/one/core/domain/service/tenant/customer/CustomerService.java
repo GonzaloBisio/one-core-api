@@ -1,14 +1,22 @@
 package com.one.core.domain.service.tenant.customer;
 
 import com.one.core.application.dto.tenant.customer.CustomerDTO;
+import com.one.core.application.dto.tenant.customer.CustomerFilterDTO;
 import com.one.core.application.exception.DuplicateFieldException;
 import com.one.core.application.exception.ResourceNotFoundException;
+import com.one.core.application.mapper.customer.CustomerMapper;
 import com.one.core.domain.model.tenant.customer.Customer;
 import com.one.core.domain.repository.tenant.customer.CustomerRepository;
-import org.flywaydb.core.internal.util.StringUtils;
+import com.one.core.domain.service.tenant.customer.criteria.CustomerSpecification;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,84 +25,50 @@ import java.util.stream.Collectors;
 @Service
 public class CustomerService {
 
+    private final CustomerRepository customerRepository;
+    private final CustomerMapper customerMapper; // Inyecta el mapper
+
     @Autowired
-    private CustomerRepository customerRepository;
-
-    // Considera usar MapStruct para los mapeos
-    private CustomerDTO convertToDTO(Customer customer) {
-        CustomerDTO dto = new CustomerDTO();
-        dto.setId(customer.getId());
-        dto.setName(customer.getName());
-        dto.setCustomerType(customer.getCustomerType());
-        dto.setTaxId(customer.getTaxId());
-        dto.setEmail(customer.getEmail());
-        dto.setPhone(customer.getPhone());
-        dto.setAddress(customer.getAddress());
-        dto.setCity(customer.getCity());
-        dto.setPostalCode(customer.getPostalCode());
-        dto.setCountry(customer.getCountry());
-        dto.setActive(customer.isActive());
-        dto.setCreatedAt(customer.getCreatedAt());
-        dto.setUpdatedAt(customer.getUpdatedAt());
-        return dto;
-    }
-
-    private void mapDtoToEntity(CustomerDTO dto, Customer entity) {
-        entity.setName(dto.getName());
-        entity.setCustomerType(dto.getCustomerType() != null ? dto.getCustomerType() : "INDIVIDUAL");
-        entity.setTaxId(dto.getTaxId());
-        entity.setEmail(dto.getEmail());
-        entity.setPhone(dto.getPhone());
-        entity.setAddress(dto.getAddress());
-        entity.setCity(dto.getCity());
-        entity.setPostalCode(dto.getPostalCode());
-        entity.setCountry(dto.getCountry());
-        entity.setActive(dto.isActive());
-        // createdAt y updatedAt son manejados por @PrePersist/@PreUpdate o triggers
+    public CustomerService(CustomerRepository customerRepository, CustomerMapper customerMapper) {
+        this.customerRepository = customerRepository;
+        this.customerMapper = customerMapper;
     }
 
     @Transactional(readOnly = true)
-    public List<CustomerDTO> getAllCustomers() {
-        return customerRepository.findAll().stream()
-                .map(this::convertToDTO)
+    public Page<CustomerDTO> getAllCustomers(CustomerFilterDTO filterDTO, Pageable pageable) {
+        Specification<Customer> spec = CustomerSpecification.filterBy(filterDTO); // Usa la especificación
+        Page<Customer> customerPage = customerRepository.findAll(spec, pageable);
+
+        List<CustomerDTO> customerDTOs = customerPage.getContent().stream()
+                .map(customerMapper::toDTO) // Usa el mapper para convertir Customer a CustomerDTO
                 .collect(Collectors.toList());
+        return new PageImpl<>(customerDTOs, pageable, customerPage.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public CustomerDTO getCustomerById(Long id) {
         Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id)); // Reemplaza con ResourceNotFoundException
-        return convertToDTO(customer);
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
+        return customerMapper.toDTO(customer);
     }
 
     @Transactional
     public CustomerDTO createCustomer(CustomerDTO customerDTO) {
-
-        String taxId = customerDTO.getTaxId();
-        if (StringUtils.hasText(taxId)) {
-            if (customerRepository.existsByTaxId(taxId.trim())) {
-                throw new DuplicateFieldException("Tax ID", taxId.trim());
+        if (StringUtils.hasText(customerDTO.getTaxId())) {
+            if (customerRepository.existsByTaxId(customerDTO.getTaxId().trim())) {
+                throw new DuplicateFieldException("Customer Tax ID", customerDTO.getTaxId().trim());
             }
-            customerDTO.setTaxId(taxId.trim()); // Normalizar
-        } else {
-            customerDTO.setTaxId(null);
+        }
+        if (StringUtils.hasText(customerDTO.getEmail())) {
+            // Asumiendo que quieres que el email sea único y tienes el método en el repo
+            // if (customerRepository.existsByEmail(customerDTO.getEmail().trim())) {
+            //     throw new DuplicateFieldException("Customer Email", customerDTO.getEmail().trim());
+            // }
         }
 
-
-        String email = customerDTO.getEmail();
-        if (StringUtils.hasText(email)) {
-
-            customerDTO.setEmail(email.trim());
-        }
-
-
-        Customer customer = new Customer();
-        mapDtoToEntity(customerDTO, customer);
-        if (customer.getCustomerType() == null) {
-            customer.setCustomerType("INDIVIDUAL");
-        }
+        Customer customer = customerMapper.toEntityForCreation(customerDTO);
         Customer savedCustomer = customerRepository.save(customer);
-        return convertToDTO(savedCustomer);
+        return customerMapper.toDTO(savedCustomer);
     }
 
     @Transactional
@@ -102,39 +76,31 @@ public class CustomerService {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer", "id", id));
 
-        // Validar Tax ID (si se provee y cambió)
-        String taxId = customerDTO.getTaxId();
-        if (StringUtils.hasText(taxId)) {
-            Optional<Customer> existingCustomerByTaxId = customerRepository.findByTaxId(taxId.trim());
-            if (existingCustomerByTaxId.isPresent() && !existingCustomerByTaxId.get().getId().equals(id)) {
-                throw new DuplicateFieldException("Tax ID", taxId.trim());
-            }
-            customerDTO.setTaxId(taxId.trim());
-        } else {
-            customerDTO.setTaxId(null); // Permitir quitarlo si es opcional
+        if (StringUtils.hasText(customerDTO.getTaxId()) && (customer.getTaxId() == null || !customerDTO.getTaxId().trim().equalsIgnoreCase(customer.getTaxId()))) {
+            customerRepository.findByTaxId(customerDTO.getTaxId().trim()).ifPresent(existingCustomer -> {
+                if (!existingCustomer.getId().equals(customer.getId())) {
+                    throw new DuplicateFieldException("Customer Tax ID", customerDTO.getTaxId().trim());
+                }
+            });
+        }
+        if (StringUtils.hasText(customerDTO.getEmail()) && (customer.getEmail() == null || !customerDTO.getEmail().trim().equalsIgnoreCase(customer.getEmail()))) {
+            // customerRepository.findByEmail(customerDTO.getEmail().trim()).ifPresent(existingCustomer -> {
+            //    if (!existingCustomer.getId().equals(customer.getId())) {
+            //        throw new DuplicateFieldException("Customer Email", customerDTO.getEmail().trim());
+            //    }
+            // });
         }
 
-        // Validar Email (si se provee y cambió y quieres que sea único)
-        String email = customerDTO.getEmail();
-        if (StringUtils.hasText(email)) {
-            // Optional<Customer> existingCustomerByEmail = customerRepository.findByEmail(email.trim());
-            // if (existingCustomerByEmail.isPresent() && !existingCustomerByEmail.get().getId().equals(id)) {
-            //     throw new DuplicateFieldException("Email", email.trim());
-            // }
-            customerDTO.setEmail(email.trim());
-        }
-
-        mapDtoToEntity(customerDTO, customer);
+        customerMapper.updateEntityFromDTO(customerDTO, customer);
         Customer updatedCustomer = customerRepository.save(customer);
-        return convertToDTO(updatedCustomer);
+        return customerMapper.toDTO(updatedCustomer);
     }
 
     @Transactional
     public void deleteCustomer(Long id) {
         if (!customerRepository.existsById(id)) {
-            throw new RuntimeException("Customer not found with id: " + id); // Reemplaza con ResourceNotFoundException
+            throw new ResourceNotFoundException("Customer", "id", id);
         }
-        // Considera lógica de negocio (ej. si tiene pedidos pendientes)
         customerRepository.deleteById(id);
     }
 }

@@ -1,86 +1,108 @@
 package com.one.core.domain.service.tenant.supplier;
 
 import com.one.core.application.dto.tenant.supplier.SupplierDTO;
+import com.one.core.application.dto.tenant.supplier.SupplierFilterDTO;
+import com.one.core.application.exception.DuplicateFieldException;
+import com.one.core.application.exception.ResourceNotFoundException;
+import com.one.core.application.mapper.supplier.SupplierMapper;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
+import com.one.core.domain.service.tenant.supplier.criteria.SupplierSpecification;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Service
 public class SupplierService {
 
+    private final SupplierRepository supplierRepository;
+    private final SupplierMapper supplierMapper; // INYECTAR MAPPER
+
     @Autowired
-    private SupplierRepository supplierRepository;
-
-    // Considera usar MapStruct para los mapeos
-    private SupplierDTO convertToDTO(Supplier supplier) {
-        SupplierDTO dto = new SupplierDTO();
-        dto.setId(supplier.getId());
-        dto.setName(supplier.getName());
-        dto.setContactPerson(supplier.getContactPerson());
-        dto.setEmail(supplier.getEmail());
-        dto.setPhone(supplier.getPhone());
-        dto.setAddress(supplier.getAddress());
-        dto.setTaxId(supplier.getTaxId());
-        dto.setNotes(supplier.getNotes());
-        dto.setCreatedAt(supplier.getCreatedAt());
-        dto.setUpdatedAt(supplier.getUpdatedAt());
-        return dto;
-    }
-
-    private void mapDtoToEntity(SupplierDTO dto, Supplier entity) {
-        entity.setName(dto.getName());
-        entity.setContactPerson(dto.getContactPerson());
-        entity.setEmail(dto.getEmail());
-        entity.setPhone(dto.getPhone());
-        entity.setAddress(dto.getAddress());
-        entity.setTaxId(dto.getTaxId());
-        entity.setNotes(dto.getNotes());
-        // createdAt y updatedAt son manejados por @PrePersist/@PreUpdate o triggers
+    public SupplierService(SupplierRepository supplierRepository, SupplierMapper supplierMapper) {
+        this.supplierRepository = supplierRepository;
+        this.supplierMapper = supplierMapper;
     }
 
     @Transactional(readOnly = true)
-    public List<SupplierDTO> getAllSuppliers() {
-        return supplierRepository.findAll().stream()
-                .map(this::convertToDTO)
+    public Page<SupplierDTO> getAllSuppliers(SupplierFilterDTO filterDTO, Pageable pageable) {
+        Specification<Supplier> spec = SupplierSpecification.filterBy(filterDTO);
+        Page<Supplier> supplierPage = supplierRepository.findAll(spec, pageable);
+
+        List<SupplierDTO> supplierDTOs = supplierPage.getContent().stream()
+                .map(supplierMapper::toDTO)
                 .collect(Collectors.toList());
+        // El servicio devuelve Page<SupplierDTO>
+        return new PageImpl<>(supplierDTOs, pageable, supplierPage.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public SupplierDTO getSupplierById(Long id) {
         Supplier supplier = supplierRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Supplier not found with id: " + id)); // Reemplaza con ResourceNotFoundException
-        return convertToDTO(supplier);
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", id));
+        return supplierMapper.toDTO(supplier); // USAR MAPPER
     }
 
     @Transactional
     public SupplierDTO createSupplier(SupplierDTO supplierDTO) {
-        Supplier supplier = new Supplier();
-        mapDtoToEntity(supplierDTO, supplier);
+        if (StringUtils.hasText(supplierDTO.getTaxId())) {
+            if (supplierRepository.existsByTaxId(supplierDTO.getTaxId().trim())) {
+                throw new DuplicateFieldException("Supplier Tax ID", supplierDTO.getTaxId().trim());
+            }
+        }
+        if (StringUtils.hasText(supplierDTO.getEmail())) {
+             if (supplierRepository.existsByEmail(supplierDTO.getEmail().trim())) { // Necesitas existsByEmail en el repo
+                 throw new DuplicateFieldException("Supplier Email", supplierDTO.getEmail().trim());
+             }
+        }
+
+        Supplier supplier = supplierMapper.toEntityForCreation(supplierDTO); // USAR MAPPER
         Supplier savedSupplier = supplierRepository.save(supplier);
-        return convertToDTO(savedSupplier);
+        return supplierMapper.toDTO(savedSupplier); // USAR MAPPER
     }
 
     @Transactional
     public SupplierDTO updateSupplier(Long id, SupplierDTO supplierDTO) {
         Supplier supplier = supplierRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Supplier not found with id: " + id)); // Reemplaza con ResourceNotFoundException
-        mapDtoToEntity(supplierDTO, supplier);
+                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", id));
+
+        // Validar unicidad de Tax ID si cambió
+        if (StringUtils.hasText(supplierDTO.getTaxId()) && !supplierDTO.getTaxId().trim().equalsIgnoreCase(supplier.getTaxId())) {
+            supplierRepository.findByTaxId(supplierDTO.getTaxId().trim()).ifPresent(existingSupplier -> {
+                if (!existingSupplier.getId().equals(supplier.getId())) {
+                    throw new DuplicateFieldException("Supplier Tax ID", supplierDTO.getTaxId().trim());
+                }
+            });
+        }
+        // Validar unicidad de Email si cambió y es requerido único
+        if (StringUtils.hasText(supplierDTO.getEmail()) && (supplier.getEmail() == null || !supplierDTO.getEmail().trim().equalsIgnoreCase(supplier.getEmail()))) {
+            // supplierRepository.findByEmail(supplierDTO.getEmail().trim()).ifPresent(existingSupplier -> {
+            //     if (!existingSupplier.getId().equals(supplier.getId())) {
+            //         throw new DuplicateFieldException("Supplier Email", supplierDTO.getEmail().trim());
+            //     }
+            // });
+        }
+
+        supplierMapper.updateEntityFromDTO(supplierDTO, supplier); // USAR MAPPER
         Supplier updatedSupplier = supplierRepository.save(supplier);
-        return convertToDTO(updatedSupplier);
+        return supplierMapper.toDTO(updatedSupplier); // USAR MAPPER
     }
 
     @Transactional
     public void deleteSupplier(Long id) {
         if (!supplierRepository.existsById(id)) {
-            throw new RuntimeException("Supplier not found with id: " + id); // Reemplaza con ResourceNotFoundException
+            throw new ResourceNotFoundException("Supplier", "id", id);
         }
-        // Considera si hay lógica de negocio antes de borrar (ej. si tiene órdenes de compra activas)
         supplierRepository.deleteById(id);
     }
 }
