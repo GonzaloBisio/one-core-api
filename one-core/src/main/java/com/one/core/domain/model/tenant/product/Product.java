@@ -1,6 +1,6 @@
 package com.one.core.domain.model.tenant.product;
 
-import com.one.core.domain.model.tenant.TenantUser;
+import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -62,11 +62,11 @@ public class Product {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
-    private TenantUser createdByUser;
+    private SystemUser createdByUser;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "updated_by_user_id")
-    private TenantUser updatedByUser;
+    private SystemUser updatedByUser;
 
     @Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP")
     private LocalDateTime createdAt;

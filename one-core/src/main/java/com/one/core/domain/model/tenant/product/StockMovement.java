@@ -1,7 +1,7 @@
 package com.one.core.domain.model.tenant.product;
 
+import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.enums.movements.MovementType;
-import com.one.core.domain.model.tenant.TenantUser;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -47,7 +47,7 @@ public class StockMovement {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id") // Usuario del tenant que realizó/causó el movimiento
-    private TenantUser user;
+    private SystemUser user;
 
     @PrePersist
     protected void onCreate() {

@@ -1,0 +1,35 @@
+# src/main/resources/application-dev.yml
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres # Cambia 'one_core_local_db' al nombre de tu BD local
+    username: postgres # Tu usuario de Postgres local
+    password: password # Tu contraseña de Postgres local
+    # driver-class-name y Hikari se heredan de application.yml si no los sobreescribes
+
+  jpa:
+    show-sql: true # Mantener true para desarrollo
+    properties:
+      hibernate:
+        format_sql: true        # o usar una variable de entorno local si prefieres.
+
+  flyway:
+    schemas: public        # En local, Flyway operará sobre 'public'
+    default-schema: public # La tabla de historial irá en 'public'
+    # Locations se hereda de application.yml (classpath:db/migration/public)
+
+# JWT Configuration (puedes usar un secreto diferente para desarrollo si quieres)
+jwt:
+  secret: "EsteEsUnSecretoDeDesarrolloLargoYFacilDeRecordarPeroNoParaProduccion" # ¡Cambia esto!
+  # expiration.ms, issuer, header, prefix se heredan si no los sobreescribes
+
+# Logging más verboso para desarrollo
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO # Más detalle de Spring
+    com.one.core: INFO      # Máximo detalle de tu código
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: INFO # Para ver parámetros de queries
+    # com.one.core.config.multitenancy.JwtTenantIdentifierResolver: TRACE # Ya cubierto por com.one.core: TRACE
+    # com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider: TRACE # Ya cubierto por com.one.core: TRACE

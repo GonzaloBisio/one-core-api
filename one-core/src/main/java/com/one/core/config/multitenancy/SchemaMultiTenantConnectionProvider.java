@@ -26,7 +26,6 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
                                                @Value("${TENANT_SCHEMA}") String defaultTenantSchema) { // O @Value("${TENANT_SCHEMA:public}")
         this.dataSource = dataSource;
         this.defaultTenantSchema = defaultTenantSchema;
-        logger.error("!!!!!!!! BEAN CREADO Y CONFIGURADO: SchemaMultiTenantConnectionProvider. Default Schema: '{}'", this.defaultTenantSchema);
     }
 
     @Override
@@ -42,14 +41,10 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     @Override
     public Connection getConnection(String tenantIdentifier) throws SQLException {
         final Connection connection = getAnyConnection();
-        logger.info("!!!!!!!! SCHEMA_MCP: Received tenantIdentifier: '{}' to set search_path.", tenantIdentifier);
         try (Statement statement = connection.createStatement()) {
             String sql = String.format("SET search_path TO \"%s\"", tenantIdentifier.replace("\"", "\"\""));
-            logger.info("!!!!!!!! SCHEMA_MCP: Executing SQL: [{}]", sql);
             statement.execute(sql);
-            logger.info("!!!!!!!! SCHEMA_MCP: Successfully switched search_path to: '{}'", tenantIdentifier);
         } catch (SQLException e) {
-            logger.error("!!!!!!!! SCHEMA_MCP: ERROR switching schema to [{}]: {}", tenantIdentifier, e.getMessage(), e);
             throw new SQLException("Could not switch to schema " + tenantIdentifier, e);
         }
         return connection;
@@ -59,10 +54,8 @@ public class SchemaMultiTenantConnectionProvider implements MultiTenantConnectio
     public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             String sql = String.format("SET search_path TO \"%s\"", this.defaultTenantSchema.replace("\"", "\"\""));
-            logger.debug("SchemaMultiTenantConnectionProvider - Resetting search_path to: {}", this.defaultTenantSchema);
             statement.execute(sql);
         } catch (SQLException e) {
-            logger.error("SchemaMultiTenantConnectionProvider - Could not reset schema to default [{}]: {}", this.defaultTenantSchema, e.getMessage(), e);
         } finally {
             connection.close();
         }

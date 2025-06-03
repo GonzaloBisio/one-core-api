@@ -55,10 +55,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt); // O el nombre de tu método
 
                 // USA EL LOGGER
-                logger.debug("JwtAuthenticationFilter - Extracted tenantSchema: '{}' for user: '{}' from JWT.", tenantSchema, username);
 
                 TenantContext.setCurrentTenant(tenantSchema);
-                logger.debug("JwtAuthenticationFilter - TenantContext set to: '{}'", tenantSchema);
 
 
                 List<GrantedAuthority> authorities = tokenProvider.getRolesFromJWT(jwt).stream()
@@ -69,10 +67,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(username, null, authorities);
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
-                logger.debug("JwtAuthenticationFilter - User '{}' authenticated. SecurityContext updated.", username);
             }
         } catch (Exception ex) {
-            logger.error("Could not set user authentication in security context", ex);
         }
 
         try {
