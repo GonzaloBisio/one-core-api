@@ -1,0 +1,94 @@
+# Nombre del workflow, aparecerá en la pestaña "Actions" de tu repositorio de GitHub
+name: Despliegue de API One-Core en AWS EC2
+
+# Configura cuándo se debe ejecutar este workflow.
+# En este caso, se ejecutará en cada 'push' a la rama 'main'.
+on:
+  push:
+    branches:
+      - main
+
+# Define las variables de entorno que se usarán en todo el workflow.
+# Útil para no repetir valores.
+env:
+  PROJECT_DIR: ./one-core # Directorio raíz de tu proyecto Maven
+  JAR_PATH: ./one-core/target/one-core-0.0.1-SNAPSHOT.jar # Ruta al JAR construido
+
+# Define los trabajos (jobs) que se ejecutarán.
+jobs:
+  # El primer trabajo se llama 'build-and-deploy'
+  build-and-deploy:
+    # El tipo de máquina virtual en la que se ejecutará el trabajo.
+    # 'ubuntu-latest' es una buena opción estándar.
+    runs-on: ubuntu-latest
+
+    # Secuencia de pasos (steps) que se ejecutarán en este trabajo.
+    steps:
+      # Paso 1: Checkout del código
+      # Clona tu repositorio en el runner de GitHub Actions.
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar JDK 21
+      # Instala la versión de Java que tu proyecto necesita para compilar.
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin' # Distribución de Java (Temurin es una buena opción)
+
+      # Paso 3: Configurar Cache de Maven
+      # Guarda las dependencias descargadas por Maven para acelerar builds futuros.
+      - name: Cache de dependencias de Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # Paso 4: Construir la aplicación con Maven
+      # Ejecuta 'mvn package' para compilar el código y crear el archivo JAR.
+      - name: Construir con Maven
+        run: mvn -B package --file ${{ env.PROJECT_DIR }}/pom.xml -DskipTests
+
+      # Paso 5: Configurar Credenciales de AWS
+      # Utiliza una acción oficial de AWS para configurar las credenciales de forma segura.
+      # Los valores de AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY se leen desde los Secretos de GitHub.
+      - name: Configurar Credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2 # ¡IMPORTANTE! Usa la región de tu instancia EC2.
+
+          # Paso 6: Copiar JAR a EC2 y Reiniciar el Servicio
+      # Usa los parámetros 'source' y 'target' de la acción para la copia de archivos.
+      - name: Deploy to EC2 and Restart Service
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          source: ${{ env.JAR_PATH }} # Archivo local en el runner de GitHub
+          target: "/home/${{ secrets.EC2_USERNAME }}/" # Directorio destino en EC2
+
+          # El script se ejecuta DESPUÉS de que el archivo se ha copiado a 'target'
+          script: |
+            echo "Deployment started..."
+            
+            # Mueve el nuevo JAR a la ubicación final, reemplazando el antiguo.
+            # Asegúrate que la ruta de destino coincida con tu archivo de servicio systemd.
+            echo "Moving new JAR to deployment location..."
+            sudo mv /home/${{ secrets.EC2_USERNAME }}/one-core-0.0.1-SNAPSHOT.jar /home/ec2-user/one-core-api/one-core/target/one-core-0.0.1-SNAPSHOT.jar
+
+            # Reinicia el servicio systemd
+            echo "Restarting one-core-api service..."
+            sudo systemctl restart one-core-api.service
+
+            # Espera unos segundos y verifica el estado para asegurar un buen despliegue
+            echo "Waiting for 15 seconds for the application to start..."
+            sleep 15
+            sudo systemctl status one-core-api.service
+
