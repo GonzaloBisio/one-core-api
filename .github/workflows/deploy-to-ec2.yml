@@ -1,0 +1,101 @@
+# Nombre del workflow, aparecerá en la pestaña "Actions" de tu repositorio de GitHub
+name: Despliegue de API One-Core en AWS EC2
+
+# Configura cuándo se debe ejecutar este workflow.
+# En este caso, se ejecutará en cada 'push' a la rama 'main'.
+on:
+  push:
+    branches:
+      - main
+
+# Define las variables de entorno que se usarán en todo el workflow.
+# Útil para no repetir valores.
+env:
+  PROJECT_DIR: ./one-core # Directorio raíz de tu proyecto Maven
+  JAR_PATH: ./one-core/target/one-core-0.0.1-SNAPSHOT.jar # Ruta al JAR construido
+
+# Define los trabajos (jobs) que se ejecutarán.
+jobs:
+  # El primer trabajo se llama 'build-and-deploy'
+  build-and-deploy:
+    # El tipo de máquina virtual en la que se ejecutará el trabajo.
+    # 'ubuntu-latest' es una buena opción estándar.
+    runs-on: ubuntu-latest
+
+    # Secuencia de pasos (steps) que se ejecutarán en este trabajo.
+    steps:
+      # Paso 1: Checkout del código
+      # Clona tu repositorio en el runner de GitHub Actions.
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # Paso 2: Configurar JDK 21
+      # Instala la versión de Java que tu proyecto necesita para compilar.
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin' # Distribución de Java (Temurin es una buena opción)
+
+      # Paso 3: Configurar Cache de Maven
+      # Guarda las dependencias descargadas por Maven para acelerar builds futuros.
+      - name: Cache de dependencias de Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # Paso 4: Construir la aplicación con Maven
+      # Ejecuta 'mvn package' para compilar el código y crear el archivo JAR.
+      - name: Construir con Maven
+        run: mvn -B package --file ${{ env.PROJECT_DIR }}/pom.xml -DskipTests
+
+      # Paso 5: Configurar Credenciales de AWS
+      # Utiliza una acción oficial de AWS para configurar las credenciales de forma segura.
+      # Los valores de AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY se leen desde los Secretos de GitHub.
+      - name: Configurar Credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2 # ¡IMPORTANTE! Usa la región de tu instancia EC2.
+
+      # Paso 6: Desplegar en EC2
+      # Este es el paso final que copia el JAR y reinicia el servicio en tu instancia.
+      # Usa una acción de la comunidad para simplificar el SSH y SCP.
+      - name: Desplegar JAR en EC2 y reiniciar el servicio
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}             # IP pública de tu EC2 (desde Secretos)
+          username: ${{ secrets.EC2_USERNAME }}     # ej. ec2-user (desde Secretos)
+          key: ${{ secrets.EC2_SSH_KEY }}           # Tu clave privada .pem (desde Secretos)
+          port: 22                                  # Puerto SSH
+          script: |
+            # Comandos que se ejecutarán remotamente en tu instancia EC2
+            
+            # (Opcional) Detener el servicio systemd si ya lo tienes configurado
+            # Esto asegura una detención controlada antes de reemplazar el archivo.
+            # El comando fallará si el servicio no existe, pero '|| true' evita que el workflow falle.
+            echo "Intentando detener el servicio one-core-api..."
+            sudo systemctl stop one-core-api.service || true
+            
+            # Copia el nuevo JAR al directorio de la aplicación en EC2
+            # El JAR se transfiere primero a la home del usuario y luego se mueve con sudo.
+            echo "Copiando el nuevo JAR a la instancia..."
+            scp -o StrictHostKeyChecking=no ${{ env.JAR_PATH }} ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/home/${{ secrets.EC2_USERNAME }}/one-core-api.jar
+            
+            # Mueve el JAR al directorio final (si es diferente) y establece permisos
+            # Esto es un ejemplo, puedes copiarlo directamente donde lo necesites.
+            # sudo mv /home/${{ secrets.EC2_USERNAME }}/one-core-api.jar /opt/one-core/one-core-api.jar
+            # sudo chown ec2-user:ec2-user /opt/one-core/one-core-api.jar
+
+            # Iniciar el servicio systemd
+            echo "Iniciando/Reiniciando el servicio one-core-api..."
+            sudo systemctl start one-core-api.service
+            
+            # (Opcional) Esperar un poco y verificar el estado para confirmar que arrancó
+            echo "Esperando 15 segundos para que la aplicación inicie..."
+            sleep 15
+            sudo systemctl status one-core-api.service
