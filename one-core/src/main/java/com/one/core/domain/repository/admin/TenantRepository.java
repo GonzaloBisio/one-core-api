@@ -8,5 +8,10 @@ import java.util.Optional;
 
 @Repository
 public interface TenantRepository extends JpaRepository<Tenant, Long> {
-    Optional<Tenant> findById(Long id);
+
+    boolean existsBySchemaName(String schemaName);
+    boolean existsByCompanyName(String companyName);
+
+    Optional<Tenant> findBySchemaName(String schemaName);
+    Optional<Tenant> findByCompanyName(String companyName);
 }

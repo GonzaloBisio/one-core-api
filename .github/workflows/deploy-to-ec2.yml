@@ -1,0 +1,85 @@
+# Nombre del workflow
+name: Despliegue de API One-Core en AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PROJECT_DIR: ./one-core
+  JAR_FILENAME: one-core-0.0.1-SNAPSHOT.jar
+  REMOTE_BASE_PATH: /opt/one-core-api
+  REMOTE_DEPLOY_PATH: /opt/one-core-api/one-core-api.jar
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pasos 1-5 sin cambios
+      - name: Checkout del código
+        uses: actions/checkout@v4
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Cache de dependencias de Maven
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Construir con Maven
+        run: mvn -B package --file ${{ env.PROJECT_DIR }}/pom.xml -DskipTests
+      - name: Crear directorio de despliegue
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo mkdir -p ${{ env.REMOTE_BASE_PATH }}
+
+      # 6. Copiar JAR a la carpeta HOME en EC2 (SIN strip_components)
+      - name: Copiar JAR a la carpeta HOME en EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: ${{ env.PROJECT_DIR }}/target/${{ env.JAR_FILENAME }}
+          target: /home/${{ secrets.EC2_USERNAME }}/
+          # La línea strip_components ha sido eliminada
+
+      # 7. Mover JAR desde su ruta real y reiniciar (CAMBIO CLAVE)
+      - name: Mover JAR y Reiniciar Servicio
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "--> Listing files in home directory to debug..."
+            ls -R /home/${{ secrets.EC2_USERNAME }}
+
+            echo "--> Stopping one-core-api service..."
+            sudo systemctl stop one-core-api.service || true
+            
+            echo "--> Moving new JAR from its real location..."
+            # ESTA ES LA LÍNEA CORREGIDA: Apunta a la ruta real donde scp deja el archivo
+            sudo mv /home/${{ secrets.EC2_USERNAME }}/one-core/target/${{ env.JAR_FILENAME }} ${{ env.REMOTE_DEPLOY_PATH }}
+            
+            echo "--> Setting final file ownership..."
+            sudo chown ec2-user:ec2-user ${{ env.REMOTE_DEPLOY_PATH }}
+            
+            echo "--> Starting one-core-api service..."
+            sudo systemctl start one-core-api.service
+            
+            echo "--> Waiting 20 seconds for application to start..."
+            sleep 20
+            
+            echo "--> Checking service status:"
+            sudo systemctl status one-core-api.service
