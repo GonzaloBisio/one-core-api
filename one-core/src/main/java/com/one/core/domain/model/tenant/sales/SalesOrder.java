@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.hibernate.annotations.ColumnDefault;
+import org.springframework.data.annotation.CreatedBy;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,6 +21,7 @@ import java.util.List;
 @Data
 @EqualsAndHashCode(exclude = {"items", "customer", "createdByUser"}) // Evitar problemas con Lombok y relaciones
 @ToString(exclude = {"items", "customer", "createdByUser"})
+@EntityListeners(org.springframework.data.jpa.domain.support.AuditingEntityListener.class)
 public class SalesOrder {
 
     @Id
@@ -62,6 +64,7 @@ public class SalesOrder {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @CreatedBy
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private SystemUser createdByUser;

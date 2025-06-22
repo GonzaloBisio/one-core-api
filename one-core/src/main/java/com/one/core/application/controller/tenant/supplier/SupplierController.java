@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/suppliers")
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN')")
+@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
 public class SupplierController {
 
     private final SupplierService supplierService;

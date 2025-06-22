@@ -17,7 +17,6 @@ public class TenantCreationRequestDTO {
     @Pattern(regexp = "^[a-z0-9_]+$", message = "Schema identifier can only contain lowercase letters, numbers, and underscores")
     private String schemaIdentifier; // ej: "ferreteria_la_tuerca"
 
-    // --- Datos para el primer usuario (TENANT_ADMIN) de este tenant ---
     @NotBlank(message = "Admin username is required")
     @Size(min = 5, max = 100)
     private String adminUsername;

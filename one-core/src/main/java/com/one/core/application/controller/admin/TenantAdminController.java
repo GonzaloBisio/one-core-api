@@ -29,8 +29,6 @@ public class TenantAdminController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> createTenant(@Valid @RequestBody TenantCreationRequestDTO requestDTO) {
 
-        // Paso 1: Crear los metadatos del tenant y usuario. Esto es transaccional.
-        // Si falla, se hace rollback y no se continúa.
         Tenant newTenant = tenantAdminService.createTenantMetadata(requestDTO);
 
         // Paso 2: Provisionar la infraestructura del schema. Esto es no-transaccional.

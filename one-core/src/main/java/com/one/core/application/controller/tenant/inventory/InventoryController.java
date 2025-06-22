@@ -20,7 +20,7 @@ import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/inventory")
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN')")
+@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
 public class InventoryController {
 
     private final InventoryService inventoryService;

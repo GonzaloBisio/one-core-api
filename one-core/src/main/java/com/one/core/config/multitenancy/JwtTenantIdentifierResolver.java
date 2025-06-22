@@ -11,10 +11,9 @@ import org.slf4j.LoggerFactory;
 public class JwtTenantIdentifierResolver implements CurrentTenantIdentifierResolver<String> {
     private static final Logger logger = LoggerFactory.getLogger(JwtTenantIdentifierResolver.class);
 
-    private final String defaultTenant; // El campo ahora es final y se inicializa en el constructor
+    private final String defaultTenant;
 
-    // Inyectar a través del constructor
-    public JwtTenantIdentifierResolver(@Value("${TENANT_SCHEMA}") String defaultTenant) { // O @Value("${TENANT_SCHEMA:public}") si quieres un default en código
+    public JwtTenantIdentifierResolver(@Value("${TENANT_SCHEMA}") String defaultTenant) {
         this.defaultTenant = defaultTenant;
     }
 
@@ -22,7 +21,7 @@ public class JwtTenantIdentifierResolver implements CurrentTenantIdentifierResol
     public String resolveCurrentTenantIdentifier() {
         String tenantIdFromContext = TenantContext.getCurrentTenant();
         String resolvedTenant = (tenantIdFromContext != null && !tenantIdFromContext.trim().isEmpty()) ?
-                tenantIdFromContext : this.defaultTenant; // Usa el campo inicializado en el constructor
+                tenantIdFromContext : this.defaultTenant;
         return resolvedTenant;
     }
 

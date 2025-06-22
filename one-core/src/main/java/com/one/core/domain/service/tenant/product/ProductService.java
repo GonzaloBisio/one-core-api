@@ -1,4 +1,3 @@
-// src/main/java/com/one/core/domain/service/tenant/product/ProductService.java
 package com.one.core.domain.service.tenant.product;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
@@ -13,6 +12,7 @@ import com.one.core.domain.repository.tenant.product.ProductCategoryRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
 import com.one.core.domain.service.tenant.product.criteria.ProductSpecification;
+import com.one.core.domain.service.tenant.util.ProductUtils;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -33,16 +33,19 @@ public class ProductService {
     private final ProductCategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
     private final ProductMapper productMapper;
+    private final ProductUtils productUtils;
 
     @Autowired
     public ProductService(ProductRepository productRepository,
                           ProductCategoryRepository categoryRepository,
                           SupplierRepository supplierRepository,
-                          ProductMapper productMapper) {
+                          ProductMapper productMapper,
+                          ProductUtils productUtils) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
         this.productMapper = productMapper;
+        this.productUtils = productUtils;
     }
 
     @Transactional(readOnly = true)
@@ -77,15 +80,22 @@ public class ProductService {
                 throw new DuplicateFieldException("Product SKU", productDTO.getSku().trim());
             });
         }
+        Product product = productMapper.toEntityForCreation(productDTO);
 
-        Product product = productMapper.toEntityForCreation(productDTO); // USA EL MAPPER
+        if (!StringUtils.hasText(product.getSku())) {
+            product.setSku(productUtils.generateSku());
+        }
 
-        // La carga y asignación de relaciones se mantiene en el servicio
+        if (!StringUtils.hasText(product.getBarcode())) {
+            product.setBarcode(productUtils.generateBarcode());
+        }
+
         if (productDTO.getCategoryId() != null) {
             ProductCategory category = categoryRepository.findById(productDTO.getCategoryId())
                     .orElseThrow(() -> new ResourceNotFoundException("ProductCategory", "id", productDTO.getCategoryId()));
             product.setCategory(category);
         }
+
         if (productDTO.getDefaultSupplierId() != null) {
             Supplier supplier = supplierRepository.findById(productDTO.getDefaultSupplierId())
                     .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", productDTO.getDefaultSupplierId()));
@@ -93,7 +103,8 @@ public class ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
-        return productMapper.toDTO(savedProduct); // USA EL MAPPER
+
+        return productMapper.toDTO(savedProduct);
     }
 
     @Transactional

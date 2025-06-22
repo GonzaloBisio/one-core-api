@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/product-categories") // URL base
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN')") // O un rol más específico
+@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
 public class ProductCategoryController {
 
     private final ProductCategoryService categoryService;
