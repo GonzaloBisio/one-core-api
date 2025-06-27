@@ -1,5 +1,6 @@
 package com.one.core.application.dto.tenant.product;
 
+import com.one.core.domain.model.enums.ProductType;
 import lombok.Data;
 import java.math.BigDecimal;
 
@@ -9,6 +10,7 @@ public class ProductDTO {
     private String sku;
     private String name;
     private String description;
+    private ProductType productType;
     private Long categoryId; // O un CategoryDTO anidado
     private String categoryName;
     private Long defaultSupplierId; // O un SupplierDTO anidado

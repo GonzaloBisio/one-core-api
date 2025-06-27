@@ -19,7 +19,7 @@ public class JwtTenantIdentifierResolver implements CurrentTenantIdentifierResol
 
     @Override
     public String resolveCurrentTenantIdentifier() {
-        String tenantIdFromContext = TenantContext.getCurrentTenant();
+        String tenantIdFromContext = TenantContext.getCurrentTenantSchema();
         String resolvedTenant = (tenantIdFromContext != null && !tenantIdFromContext.trim().isEmpty()) ?
                 tenantIdFromContext : this.defaultTenant;
         return resolvedTenant;

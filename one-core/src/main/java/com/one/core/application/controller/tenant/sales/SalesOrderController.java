@@ -1,10 +1,10 @@
-// src/main/java/com/one/core/application/controller/tenant/sales/SalesOrderController.java
 package com.one.core.application.controller.tenant.sales;
 
 import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderFilterDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderRequestDTO;
+import com.one.core.application.security.UserPrincipal;
 import com.one.core.domain.service.tenant.sales.SalesOrderService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +15,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,8 +31,10 @@ public class SalesOrderController {
     }
 
     @PostMapping
-    public ResponseEntity<SalesOrderDTO> createSalesOrder(@Valid @RequestBody SalesOrderRequestDTO requestDTO) {
-        SalesOrderDTO createdOrder = salesOrderService.createSalesOrder(requestDTO);
+    public ResponseEntity<SalesOrderDTO> createSalesOrder(
+            @Valid @RequestBody SalesOrderRequestDTO requestDTO,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        SalesOrderDTO createdOrder = salesOrderService.createSalesOrder(requestDTO, currentUser);
         return new ResponseEntity<>(createdOrder, HttpStatus.CREATED);
     }
 
@@ -50,11 +53,11 @@ public class SalesOrderController {
     }
 
     @PostMapping("/{id}/confirm-process")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN')") // Roles con más permisos
-    public ResponseEntity<SalesOrderDTO> confirmAndProcessSalesOrder(@PathVariable Long id) {
-        SalesOrderDTO processedOrder = salesOrderService.confirmAndProcessSalesOrder(id);
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN')")
+    public ResponseEntity<SalesOrderDTO> confirmAndProcessSalesOrder(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        SalesOrderDTO processedOrder = salesOrderService.confirmAndProcessSalesOrder(id, currentUser);
         return ResponseEntity.ok(processedOrder);
     }
-
-    // Aquí podrías añadir más endpoints para actualizar estado (ej. a SHIPPED, DELIVERED, CANCELLED)
 }

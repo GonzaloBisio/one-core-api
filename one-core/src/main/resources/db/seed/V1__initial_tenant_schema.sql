@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS products (
                                         id BIGSERIAL PRIMARY KEY,
                                         sku VARCHAR(50) UNIQUE,
     name VARCHAR(150) NOT NULL,
+    product_type VARCHAR(50) NOT NULL DEFAULT 'PHYSICAL_GOOD',
     description TEXT,
     category_id BIGINT,
     default_supplier_id BIGINT,

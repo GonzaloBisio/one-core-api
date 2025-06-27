@@ -30,12 +30,9 @@ public class CustomerController {
     @GetMapping
     public ResponseEntity<PageableResponse<CustomerDTO>> getAllCustomers(
             CustomerFilterDTO filterDTO,
-            @PageableDefault(size = 10, sort = "name", direction = Sort.Direction.ASC)
-            Pageable pageable
-    ) {
+            @PageableDefault(size = 10, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
         Page<CustomerDTO> customerPage = customerService.getAllCustomers(filterDTO, pageable);
-        PageableResponse<CustomerDTO> customResponse = new PageableResponse<>(customerPage);
-        return ResponseEntity.ok(customResponse);
+        return ResponseEntity.ok(new PageableResponse<>(customerPage));
     }
 
     @GetMapping("/{id}")

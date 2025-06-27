@@ -1,6 +1,7 @@
 package com.one.core.domain.model.tenant.product;
 
 import com.one.core.domain.model.admin.SystemUser;
+import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -29,6 +30,10 @@ public class Product {
 
     @Column(nullable = false, length = 150)
     private String name;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_type", nullable = false)
+    private ProductType productType;
 
     @Column(columnDefinition = "TEXT")
     private String description;

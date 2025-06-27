@@ -1,8 +1,8 @@
 package com.one.core.application.controller.tenant.supplier;
 
+import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.application.dto.tenant.supplier.SupplierDTO;
 import com.one.core.application.dto.tenant.supplier.SupplierFilterDTO;
-import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.domain.service.tenant.supplier.SupplierService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,8 +34,7 @@ public class SupplierController {
             Pageable pageable
     ) {
         Page<SupplierDTO> supplierPage = supplierService.getAllSuppliers(filterDTO, pageable);
-        PageableResponse<SupplierDTO> customResponse = new PageableResponse<>(supplierPage);
-        return ResponseEntity.ok(customResponse);
+        return ResponseEntity.ok(new PageableResponse<>(supplierPage));
     }
 
     @GetMapping("/{id}")

@@ -22,6 +22,7 @@ public class ProductMapper {
         dto.setSku(product.getSku());
         dto.setName(product.getName());
         dto.setDescription(product.getDescription());
+        dto.setProductType(product.getProductType());
 
         if (product.getCategory() != null) {
             dto.setCategoryId(product.getCategory().getId());

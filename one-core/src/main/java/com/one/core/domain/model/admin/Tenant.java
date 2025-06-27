@@ -1,5 +1,6 @@
 package com.one.core.domain.model.admin;
 
+import com.one.core.domain.model.enums.IndustryType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,13 +19,15 @@ public class Tenant {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // companyName se mapeará a company_name por la estrategia de nombrado implícita de Hibernate
     @Column(name = "company_name", nullable = false, unique = true, length = 100)
     private String companyName;
 
-    // schemaName se mapeará a schema_name
     @Column(name = "schema_name", nullable = false, unique = true, length = 100)
     private String schemaName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "industry_type", nullable = false)
+    private IndustryType industryType;
 
     @CreationTimestamp
     @Column(name = "created_at", columnDefinition = "TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP")

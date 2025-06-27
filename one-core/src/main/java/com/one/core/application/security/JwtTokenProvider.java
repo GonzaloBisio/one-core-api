@@ -9,9 +9,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
-// Importa tu UserDetails personalizado si tienes uno, ej. UserPrincipal
-// import com.one.core.application.security.UserPrincipal;
-
 
 import javax.crypto.SecretKey;
 import java.util.Date;
@@ -40,9 +37,12 @@ public class JwtTokenProvider {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
         String username = userPrincipal.getUsername();
+        Long userId = userPrincipal.getId();
         String tenantSchemaName = userPrincipal.getTenantSchemaName();
         Long tenantDbId = userPrincipal.getTenantDbId();
         String tenantCompanyName = userPrincipal.getTenantCompanyName();
+        String industryType = userPrincipal.getIndustryType();
+
 
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
@@ -53,9 +53,11 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .setSubject(username)
+                .claim("id", userId)
                 .claim("tenantSchema", tenantSchemaName)
                 .claim("tenantDbId", tenantDbId)
                 .claim("tenantName", tenantCompanyName)
+                .claim("industryType", industryType)
                 .claim("roles", roles)
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
@@ -68,6 +70,10 @@ public class JwtTokenProvider {
         return claims.getSubject();
     }
 
+    public Long getUserIdFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return claims.get("id", Long.class);
+    }
 
     @SuppressWarnings("unchecked")
     public List<String> getRolesFromJWT(String token) {
@@ -80,6 +86,20 @@ public class JwtTokenProvider {
         return claims.get("tenantSchema", String.class);
     }
 
+    public String getIndustryTypeFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return claims.get("industryType", String.class);
+    }
+
+    public Long getTenantDbIdFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return claims.get("tenantDbId", Long.class);
+    }
+
+    public String getTenantCompanyNameFromJWT(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return claims.get("tenantName", String.class);
+    }
 
     public boolean validateToken(String authToken) {
         try {

@@ -34,9 +34,14 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("User " + username + " is not associated with a valid tenant.");
         }
 
-        String tenantSchema = tenant.getSchemaName(); // Nombre del esquema
-        Long tenantDatabaseId = tenant.getId();        // ID de la BD del tenant
-        String companyName = tenant.getCompanyName();  // Nombre de la compañía
+        String tenantSchema = tenant.getSchemaName();
+        Long tenantDatabaseId = tenant.getId();
+        String companyName = tenant.getCompanyName();
+        String industryType = tenant.getIndustryType().name();
+
+        if (industryType.trim().isEmpty()) {
+            throw new UsernameNotFoundException("Tenant industry type not found for user " + username);
+        }
 
         if (tenantSchema == null || tenantSchema.trim().isEmpty()) {
             throw new UsernameNotFoundException("Tenant schema name not found for user " + username);
@@ -52,11 +57,9 @@ public class CustomUserDetailsService implements UserDetailsService {
         SystemRole userSystemRole = systemUser.getSystemRole();
 
         if (userSystemRole == null) {
-            // Esto no debería pasar si la columna system_role es NOT NULL
             throw new IllegalStateException("SystemUser " + username + " has no system role defined.");
         }
 
-        // Asignar roles de Spring Security basados en el SystemRole del enum
         switch (userSystemRole) {
             case SUPER_ADMIN:
                 authorities.add(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"));
@@ -80,6 +83,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 tenantSchema,
                 tenantDatabaseId,
                 companyName,
+                industryType,
                 authorities
         );
     }

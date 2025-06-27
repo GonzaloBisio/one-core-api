@@ -13,7 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Propagation;
 
 @Service
 public class TenantAdminService {
@@ -59,6 +58,7 @@ public class TenantAdminService {
         Tenant newTenant = new Tenant();
         newTenant.setCompanyName(requestDTO.getCompanyName());
         newTenant.setSchemaName(schemaName);
+        newTenant.setIndustryType(requestDTO.getIndustryType());
         Tenant savedTenant = tenantRepository.save(newTenant);
 
         // --- Crear el SystemUser Administrador para el Tenant ---

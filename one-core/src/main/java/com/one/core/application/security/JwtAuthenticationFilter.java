@@ -1,6 +1,7 @@
 package com.one.core.application.security;
 
 import com.one.core.config.multitenancy.TenantContext;
+import com.one.core.config.multitenancy.TenantInfo;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,8 +14,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService; // Podrías necesitar uno para cargar UserDetails
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -32,11 +31,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Autowired
     private JwtTokenProvider tokenProvider;
 
-    // Opcional: si necesitas cargar UserDetails completos a partir del username del token.
-    // Si no, puedes construir la autenticación directamente con los claims del JWT.
-    // @Autowired
-    // private UserDetailsService userDetailsService;
-
     @Value("${jwt.header}")
     private String jwtHeader;
 
@@ -52,29 +46,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
-                String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt); // O el nombre de tu método
+                String tenantSchema = tokenProvider.getTenantSchemaFromJWT(jwt);
+                String industryType = tokenProvider.getIndustryTypeFromJWT(jwt);
+                Long userId = tokenProvider.getUserIdFromJWT(jwt);
+                Long tenantDbId = tokenProvider.getTenantDbIdFromJWT(jwt);
+                String tenantCompanyName = tokenProvider.getTenantCompanyNameFromJWT(jwt);
 
-                // USA EL LOGGER
-
-                TenantContext.setCurrentTenant(tenantSchema);
-
+                TenantInfo tenantInfo = new TenantInfo(tenantSchema, industryType);
+                TenantContext.setCurrentTenant(tenantInfo);
 
                 List<GrantedAuthority> authorities = tokenProvider.getRolesFromJWT(jwt).stream()
                         .map(SimpleGrantedAuthority::new)
                         .collect(Collectors.toList());
 
+                UserPrincipal userPrincipal = new UserPrincipal(
+                        userId,
+                        username,
+                        null,
+                        tenantSchema,
+                        tenantDbId,
+                        tenantCompanyName,
+                        industryType,
+                        authorities
+                );
+
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(username, null, authorities);
+                        new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception ex) {
+            logger.error("Could not set user authentication in security context", ex);
         }
 
         try {
             filterChain.doFilter(request, response);
         } finally {
-            System.out.println("JwtAuthenticationFilter - Clearing TenantContext for: " + TenantContext.getCurrentTenant()); // LOG
             TenantContext.clear();
         }
     }

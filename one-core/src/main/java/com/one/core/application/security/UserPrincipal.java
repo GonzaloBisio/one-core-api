@@ -7,16 +7,17 @@ import java.util.Collection;
 import java.util.Objects;
 
 public class UserPrincipal implements UserDetails {
-    private final Long id; // ID del SystemUser
+    private final Long id;
     private final String username;
     private final String password;
-    private final String tenantSchemaName;    // Nombre del esquema del Tenant (antes llamado tenantId aquí)
-    private final Long tenantDbId;          // NUEVO: ID de la BD del Tenant
-    private final String tenantCompanyName; // NUEVO: Nombre de la compañía del Tenant
+    private final String tenantSchemaName;
+    private final Long tenantDbId;
+    private final String tenantCompanyName;
+    private final String industryType;
     private final Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(Long id, String username, String password,
-                         String tenantSchemaName, Long tenantDbId, String tenantCompanyName,
+                         String tenantSchemaName, Long tenantDbId, String tenantCompanyName, String industryType,
                          Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
@@ -24,6 +25,7 @@ public class UserPrincipal implements UserDetails {
         this.tenantSchemaName = tenantSchemaName;
         this.tenantDbId = tenantDbId;
         this.tenantCompanyName = tenantCompanyName;
+        this.industryType = industryType;
         this.authorities = authorities;
     }
 
@@ -52,6 +54,10 @@ public class UserPrincipal implements UserDetails {
     @Override
     public String getPassword() {
         return password;
+    }
+
+    public String getIndustryType() {
+        return industryType;
     }
 
     @Override

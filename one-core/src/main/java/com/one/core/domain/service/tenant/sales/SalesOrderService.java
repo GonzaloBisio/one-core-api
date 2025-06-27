@@ -1,4 +1,3 @@
-// src/main/java/com/one/core/domain/service/tenant/sales/SalesOrderService.java
 package com.one.core.domain.service.tenant.sales;
 
 import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
@@ -8,34 +7,34 @@ import com.one.core.application.dto.tenant.sales.SalesOrderItemRequestDTO;
 import com.one.core.application.exception.ResourceNotFoundException;
 import com.one.core.application.exception.ValidationException;
 import com.one.core.application.mapper.sales.SalesOrderMapper;
-import com.one.core.application.security.AuthenticationFacade; // IMPORTA TU FACADE
-import com.one.core.domain.model.admin.SystemUser; // IMPORTA SystemUser
+import com.one.core.application.security.UserPrincipal;
+import com.one.core.domain.model.admin.SystemUser;
+import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.enums.movements.MovementType;
 import com.one.core.domain.model.enums.sales.SalesOrderStatus;
 import com.one.core.domain.model.tenant.customer.Customer;
 import com.one.core.domain.model.tenant.product.Product;
 import com.one.core.domain.model.tenant.sales.SalesOrder;
 import com.one.core.domain.model.tenant.sales.SalesOrderItem;
+import com.one.core.domain.repository.admin.SystemUserRepository;
 import com.one.core.domain.repository.tenant.customer.CustomerRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.sales.SalesOrderRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
-import com.one.core.domain.service.tenant.sales.criteria.SalesOrderSpecification; // Si usas Specifications
-
+import com.one.core.domain.service.tenant.sales.criteria.SalesOrderSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification; // Si usas Specifications
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,34 +46,35 @@ public class SalesOrderService {
     private final CustomerRepository customerRepository;
     private final SalesOrderMapper salesOrderMapper;
     private final InventoryService inventoryService;
-    private final AuthenticationFacade authenticationFacade; // INYECTA EL FACADE
-    // TenantUserRepository ya no es necesario aquí si el createdByUser en SalesOrder es SystemUser
+    private final SystemUserRepository systemUserRepository;
 
     @Autowired
     public SalesOrderService(SalesOrderRepository salesOrderRepository,
                              ProductRepository productRepository,
                              CustomerRepository customerRepository,
-                             // TenantUserRepository tenantUserRepository, // Eliminar si ya no se usa
                              SalesOrderMapper salesOrderMapper,
                              InventoryService inventoryService,
-                             AuthenticationFacade authenticationFacade) { // Añade al constructor
+                             SystemUserRepository systemUserRepository) {
         this.salesOrderRepository = salesOrderRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
-        // this.tenantUserRepository = tenantUserRepository; // Eliminar
         this.salesOrderMapper = salesOrderMapper;
         this.inventoryService = inventoryService;
-        this.authenticationFacade = authenticationFacade; // Asigna el Facade
+        this.systemUserRepository = systemUserRepository;
     }
 
     @Transactional
-    public SalesOrderDTO createSalesOrder(SalesOrderRequestDTO requestDTO) {
+    public SalesOrderDTO createSalesOrder(SalesOrderRequestDTO requestDTO, UserPrincipal currentUser) {
+        SystemUser systemUser = systemUserRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("SystemUser", "id", currentUser.getId()));
+
         SalesOrder order = new SalesOrder();
         order.setOrderDate(LocalDate.now());
         order.setStatus(SalesOrderStatus.PENDING_PAYMENT);
         order.setNotes(requestDTO.getNotes());
         order.setPaymentMethod(requestDTO.getPaymentMethod());
         order.setShippingAddress(requestDTO.getShippingAddress());
+        order.setCreatedByUser(systemUser);
 
         if (requestDTO.getCustomerId() != null) {
             Customer customer = customerRepository.findById(requestDTO.getCustomerId())
@@ -85,16 +85,15 @@ public class SalesOrderService {
             }
         }
 
-        // Obtener el SystemUser actual para createdByUser
-        // Asumiendo que SalesOrder.createdByUser ahora es de tipo SystemUser
-        Optional<SystemUser> currentUserOpt = authenticationFacade.getCurrentAuthenticatedSystemUser();
-        currentUserOpt.ifPresent(order::setCreatedByUser);
-        // Si no hay usuario (ej. proceso de sistema), createdByUser será null, lo cual es aceptable si el campo es nullable
-
+        boolean hasPhysicalGoods = false;
         List<SalesOrderItem> items = new ArrayList<>();
         for (SalesOrderItemRequestDTO itemDto : requestDTO.getItems()) {
             Product product = productRepository.findById(itemDto.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemDto.getProductId()));
+
+            if (product.getProductType() == ProductType.PHYSICAL_GOOD) {
+                hasPhysicalGoods = true;
+            }
 
             SalesOrderItem orderItem = salesOrderMapper.itemRequestDtoToEntity(itemDto, product);
             orderItem.setSalesOrder(order);
@@ -103,61 +102,58 @@ public class SalesOrderService {
         order.setItems(items);
         order.recalculateTotals();
 
+        // Si la orden no contiene bienes físicos, no necesita una dirección de envío.
+        if (!hasPhysicalGoods) {
+            order.setShippingAddress(null);
+        }
+
         SalesOrder savedOrder = salesOrderRepository.save(order);
         return salesOrderMapper.toDTO(savedOrder);
     }
 
     @Transactional
-    public SalesOrderDTO confirmAndProcessSalesOrder(Long salesOrderId) {
+    public SalesOrderDTO confirmAndProcessSalesOrder(Long salesOrderId, UserPrincipal currentUser) {
         SalesOrder order = salesOrderRepository.findById(salesOrderId)
                 .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
 
-        // Validar estados desde los que se puede confirmar
-        if (order.getStatus() != SalesOrderStatus.PENDING_PAYMENT && order.getStatus() != SalesOrderStatus.PENDING_PAYMENT) {
+        if (order.getStatus() != SalesOrderStatus.PENDING_PAYMENT) {
             throw new ValidationException("Sales order cannot be confirmed from its current status: " + order.getStatus());
         }
 
+        // Primero, verificamos el stock de todos los productos físicos necesarios
         for (SalesOrderItem item : order.getItems()) {
-            if (!inventoryService.isStockAvailable(item.getProduct().getId(), item.getQuantity())) {
-                throw new ValidationException(
-                        String.format("Insufficient stock for product: %s (ID: %d). Requested: %s, Available: %s",
-                                item.getProduct().getName(), item.getProduct().getId(), item.getQuantity(), inventoryService.getCurrentStock(item.getProduct().getId()))
+            if (item.getProduct().getProductType() == ProductType.PHYSICAL_GOOD) {
+                if (!inventoryService.isStockAvailable(item.getProduct().getId(), item.getQuantity())) {
+                    throw new ValidationException(
+                            String.format("Insufficient stock for product: %s (ID: %d). Requested: %s, Available: %s",
+                                    item.getProduct().getName(), item.getProduct().getId(), item.getQuantity(), inventoryService.getCurrentStock(item.getProduct().getId()))
+                    );
+                }
+            }
+        }
+
+        Long processingSystemUserId = currentUser.getId();
+
+        // Si todas las validaciones pasaron, ahora sí procesamos el descuento de stock
+        for (SalesOrderItem item : order.getItems()) {
+            if (item.getProduct().getProductType() == ProductType.PHYSICAL_GOOD) {
+                inventoryService.processOutgoingStock(
+                        item.getProduct().getId(),
+                        item.getQuantity(),
+                        MovementType.SALE_CONFIRMED,
+                        "SALES_ORDER",
+                        order.getId().toString(),
+                        processingSystemUserId,
+                        "Sale for order ID: " + order.getId() + " - Product: " + item.getProduct().getName()
                 );
             }
         }
 
-        // Obtener el ID del SystemUser que está realizando la confirmación.
-        // Si la orden fue creada por un usuario y confirmada por otro, este ID podría ser diferente.
-        // Por ahora, asumimos que el usuario actual en el contexto es quien procesa.
-        Long processingSystemUserId = authenticationFacade.getCurrentAuthenticatedSystemUserId()
-                .orElse(order.getCreatedByUser() != null ? order.getCreatedByUser().getId() : null); // Fallback al creador si no hay contexto, o manejar como error
-
-        if (processingSystemUserId == null && order.getCreatedByUser() == null) {
-            logger.warn("Cannot determine processing user for SalesOrder ID: {}. Stock movement will be recorded without user.", salesOrderId);
-        }
-
-
-        for (SalesOrderItem item : order.getItems()) {
-            inventoryService.processOutgoingStock(
-                    item.getProduct().getId(),
-                    item.getQuantity(),
-                    MovementType.SALE_CONFIRMED, // Enum de MovementType
-                    "SALES_ORDER",
-                    order.getId().toString(),
-                    // Pasa el ID del SystemUser que procesa la orden.
-                    // Si createdByUser es SystemUser y quieres usar el creador original:
-                    // order.getCreatedByUser() != null ? order.getCreatedByUser().getId() : null
-                    processingSystemUserId,
-                    "Sale for order ID: " + order.getId() + " - Product: " + item.getProduct().getName()
-            );
-        }
-
-        order.setStatus(SalesOrderStatus.PREPARING_ORDER); // O SHIPPED, dependiendo del flujo de tu negocio
+        order.setStatus(SalesOrderStatus.PREPARING_ORDER);
         SalesOrder updatedOrder = salesOrderRepository.save(order);
 
         return salesOrderMapper.toDTO(updatedOrder);
     }
-
 
     @Transactional(readOnly = true)
     public SalesOrderDTO getSalesOrderById(Long id) {
@@ -176,9 +172,4 @@ public class SalesOrderService {
                 .collect(Collectors.toList());
         return new PageImpl<>(orderDTOs, pageable, orderPage.getTotalElements());
     }
-
-    // Aquí puedes añadir más métodos como:
-    // - updateOrderStatus(Long orderId, SalesOrderStatus newStatus)
-    // - cancelSalesOrder(Long orderId)
-    // etc.
 }

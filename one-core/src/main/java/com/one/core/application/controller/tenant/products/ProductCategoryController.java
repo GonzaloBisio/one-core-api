@@ -16,7 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/product-categories") // URL base
+@RequestMapping("/product-categories")
 @PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
 public class ProductCategoryController {
 
@@ -32,8 +32,7 @@ public class ProductCategoryController {
             ProductCategoryFilterDTO filterDTO,
             @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
         Page<ProductCategoryDTO> categoryPage = categoryService.getAllCategories(filterDTO, pageable);
-        PageableResponse<ProductCategoryDTO> response = new PageableResponse<>(categoryPage);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(new PageableResponse<>(categoryPage));
     }
 
     @GetMapping("/{id}")

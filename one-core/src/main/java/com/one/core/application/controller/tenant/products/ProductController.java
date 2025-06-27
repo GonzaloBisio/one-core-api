@@ -34,8 +34,7 @@ public class ProductController {
             Pageable pageable
     ) {
         Page<ProductDTO> productPage = productService.getAllProducts(filterDTO, pageable);
-        PageableResponse<ProductDTO> customResponse = new PageableResponse<>(productPage);
-        return ResponseEntity.ok(customResponse);
+        return ResponseEntity.ok(new PageableResponse<>(productPage));
     }
 
     @GetMapping("/{id}")

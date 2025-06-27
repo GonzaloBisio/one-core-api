@@ -1,6 +1,8 @@
 package com.one.core.application.dto.admin;
 
+import com.one.core.domain.model.enums.IndustryType;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -15,7 +17,10 @@ public class TenantCreationRequestDTO {
     @NotBlank(message = "Schema identifier is required")
     @Size(min = 3, max = 50, message = "Schema identifier must be between 3 and 50 characters")
     @Pattern(regexp = "^[a-z0-9_]+$", message = "Schema identifier can only contain lowercase letters, numbers, and underscores")
-    private String schemaIdentifier; // ej: "ferreteria_la_tuerca"
+    private String schemaIdentifier;
+
+    @NotNull(message = "Industry type is required")
+    private IndustryType industryType;
 
     @NotBlank(message = "Admin username is required")
     @Size(min = 5, max = 100)

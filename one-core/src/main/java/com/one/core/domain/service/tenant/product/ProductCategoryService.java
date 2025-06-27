@@ -9,7 +9,6 @@ import com.one.core.application.mapper.product.ProductCategoryMapper;
 import com.one.core.domain.model.tenant.product.ProductCategory;
 import com.one.core.domain.repository.tenant.product.ProductCategoryRepository;
 import com.one.core.domain.service.tenant.product.criteria.ProductCategorySpecification;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,7 +54,6 @@ public class ProductCategoryService {
         if (categoryRepository.existsByName(categoryDTO.getName().trim())) {
             throw new DuplicateFieldException("Category name", categoryDTO.getName().trim());
         }
-
         ProductCategory category = categoryMapper.toEntityForCreation(categoryDTO);
 
         if (categoryDTO.getParentId() != null) {
@@ -74,25 +71,22 @@ public class ProductCategoryService {
         ProductCategory category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductCategory", "id", id));
 
-        // Validar unicidad del nombre si cambió
         if (!category.getName().equalsIgnoreCase(categoryDTO.getName().trim())) {
             if (categoryRepository.existsByName(categoryDTO.getName().trim())) {
                 throw new DuplicateFieldException("Category name", categoryDTO.getName().trim());
             }
         }
-
         categoryMapper.updateEntityFromDTO(categoryDTO, category);
 
         if (categoryDTO.getParentId() != null) {
-            if (categoryDTO.getParentId().equals(category.getId())) { // Evitar auto-referencia directa
+            if (categoryDTO.getParentId().equals(category.getId())) {
                 throw new ValidationException("A category cannot be its own parent.");
             }
             ProductCategory parent = categoryRepository.findById(categoryDTO.getParentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Parent ProductCategory", "id", categoryDTO.getParentId()));
-            // Aquí podrías añadir una validación para evitar dependencias circulares (más complejo)
             category.setParentCategory(parent);
         } else {
-            category.setParentCategory(null); // Permitir quitar el padre
+            category.setParentCategory(null);
         }
 
         ProductCategory updatedCategory = categoryRepository.save(category);
@@ -101,20 +95,7 @@ public class ProductCategoryService {
 
     @Transactional
     public void deleteCategory(Long id) {
-        ProductCategory category = categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("ProductCategory", "id", id));
-
-        // Lógica de negocio antes de borrar:
-        // - ¿Tiene subcategorías? ¿Qué hacer con ellas? (Podrías restringir o reasignarlas)
-        // - ¿Está asignada a algún producto? (Podrías restringir o desasignarla de los productos)
-        // Ejemplo de restricción simple:
-        // if (!productRepository.findByCategoryId(id).isEmpty()) { // Necesitarías este método en ProductRepository
-        //     throw new ValidationException("Cannot delete category with assigned products.");
-        // }
-        // if (categoryRepository.existsByParentCategoryId(id)) { // Necesitarías este método
-        //     throw new ValidationException("Cannot delete category with subcategories.");
-        // }
-
-        categoryRepository.delete(category);
+        if (!categoryRepository.existsById(id)) throw new ResourceNotFoundException("ProductCategory", "id", id);
+        categoryRepository.deleteById(id);
     }
 }

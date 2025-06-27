@@ -1,23 +1,23 @@
-// src/main/java/com/one/core/domain/service/tenant/purchases/PurchaseOrderService.java
 package com.one.core.domain.service.tenant.purchases;
 
 import com.one.core.application.dto.tenant.purchases.*;
 import com.one.core.application.exception.ResourceNotFoundException;
 import com.one.core.application.exception.ValidationException;
 import com.one.core.application.mapper.purchases.PurchaseOrderMapper;
-import com.one.core.application.security.AuthenticationFacade;
+import com.one.core.application.security.UserPrincipal;
+import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.enums.movements.MovementType;
 import com.one.core.domain.model.enums.purchases.PurchaseOrderStatus;
-import com.one.core.domain.model.tenant.supplier.Supplier;
 import com.one.core.domain.model.tenant.product.Product;
 import com.one.core.domain.model.tenant.purchases.PurchaseOrder;
 import com.one.core.domain.model.tenant.purchases.PurchaseOrderItem;
-import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
+import com.one.core.domain.model.tenant.supplier.Supplier;
+import com.one.core.domain.repository.admin.SystemUserRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.purchases.PurchaseOrderItemRepository;
 import com.one.core.domain.repository.tenant.purchases.PurchaseOrderRepository;
+import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
-
 import com.one.core.domain.service.tenant.purchases.criteria.PurchaseOrderSpecification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +25,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-// import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,29 +43,32 @@ public class PurchaseOrderService {
     private final PurchaseOrderItemRepository purchaseOrderItemRepository;
     private final ProductRepository productRepository;
     private final SupplierRepository supplierRepository;
+    private final SystemUserRepository systemUserRepository;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final InventoryService inventoryService;
-    private final AuthenticationFacade authenticationFacade;
 
     @Autowired
     public PurchaseOrderService(PurchaseOrderRepository purchaseOrderRepository,
                                 PurchaseOrderItemRepository purchaseOrderItemRepository,
                                 ProductRepository productRepository,
                                 SupplierRepository supplierRepository,
+                                SystemUserRepository systemUserRepository,
                                 PurchaseOrderMapper purchaseOrderMapper,
-                                InventoryService inventoryService,
-                                AuthenticationFacade authenticationFacade) { // AÑADE AL CONSTRUCTOR
+                                InventoryService inventoryService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderItemRepository = purchaseOrderItemRepository;
         this.productRepository = productRepository;
         this.supplierRepository = supplierRepository;
+        this.systemUserRepository = systemUserRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.inventoryService = inventoryService;
-        this.authenticationFacade = authenticationFacade;
     }
 
     @Transactional
-    public PurchaseOrderDTO createPurchaseOrder(PurchaseOrderRequestDTO requestDTO) {
+    public PurchaseOrderDTO createPurchaseOrder(PurchaseOrderRequestDTO requestDTO, UserPrincipal currentUser) {
+        SystemUser systemUser = systemUserRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("SystemUser", "id", currentUser.getId()));
+
         PurchaseOrder order = new PurchaseOrder();
         order.setOrderDate(LocalDate.now());
         order.setStatus(PurchaseOrderStatus.DRAFT);
@@ -76,9 +78,7 @@ public class PurchaseOrderService {
         Supplier supplier = supplierRepository.findById(requestDTO.getSupplierId())
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", requestDTO.getSupplierId()));
         order.setSupplier(supplier);
-
-
-        authenticationFacade.getCurrentAuthenticatedSystemUser().ifPresent(order::setCreatedByUser);
+        order.setCreatedByUser(systemUser);
 
         List<PurchaseOrderItem> items = new ArrayList<>();
         for (PurchaseOrderItemRequestDTO itemDto : requestDTO.getItems()) {
@@ -96,7 +96,7 @@ public class PurchaseOrderService {
     }
 
     @Transactional
-    public PurchaseOrderDTO receiveGoods(GoodsReceiptRequestDTO receiptDTO) {
+    public PurchaseOrderDTO receiveGoods(GoodsReceiptRequestDTO receiptDTO, UserPrincipal currentUser) {
         PurchaseOrder order = purchaseOrderRepository.findById(receiptDTO.getPurchaseOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("PurchaseOrder", "id", receiptDTO.getPurchaseOrderId()));
 
@@ -104,13 +104,8 @@ public class PurchaseOrderService {
             throw new ValidationException("Goods cannot be received for an order that is already " + order.getStatus());
         }
 
-        Long currentSystemUserId = authenticationFacade.getCurrentAuthenticatedSystemUserId()
-                .orElseThrow(() -> new ValidationException("Authenticated user ID could not be determined for receiving goods."));
-
         String notesForMovement = "Goods received for PO: " + order.getId() +
                 (receiptDTO.getNotes() != null ? " - " + receiptDTO.getNotes() : "");
-
-        boolean allItemsFullyReceived = true; // Asumimos que todo se recibirá completamente al principio
 
         for (GoodsReceiptItemDTO itemReceivedDto : receiptDTO.getItemsReceived()) {
             PurchaseOrderItem orderItem = purchaseOrderItemRepository.findById(itemReceivedDto.getPurchaseOrderItemId())
@@ -122,7 +117,6 @@ public class PurchaseOrderService {
 
             BigDecimal quantityToReceiveNow = itemReceivedDto.getQuantityReceivedNow();
             if (quantityToReceiveNow == null || quantityToReceiveNow.compareTo(BigDecimal.ZERO) <= 0) {
-                logger.warn("Skipping item {} with zero or negative quantity to receive: {}", itemReceivedDto.getPurchaseOrderItemId(), quantityToReceiveNow);
                 continue;
             }
 
@@ -144,13 +138,9 @@ public class PurchaseOrderService {
                     MovementType.PURCHASE_RECEIPT,
                     "PURCHASE_ORDER",
                     order.getId().toString(),
-                    currentSystemUserId,
+                    currentUser.getId(),
                     notesForMovement + " - Item: " + orderItem.getProduct().getName()
             );
-
-            if (newTotalReceived.compareTo(orderItem.getQuantityOrdered()) < 0) {
-                allItemsFullyReceived = false;
-            }
         }
 
         boolean allOrderItemsNowFullyReceived = order.getItems().stream()

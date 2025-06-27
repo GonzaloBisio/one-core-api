@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS product_categories (
     );
 
 CREATE TABLE IF NOT EXISTS products (
-                                        id BIGSERIAL PRIMARY KEY, sku VARCHAR(50) UNIQUE, name VARCHAR(150) NOT NULL, description TEXT,
+                                        id BIGSERIAL PRIMARY KEY, sku VARCHAR(50) UNIQUE, name VARCHAR(150) NOT NULL,
+    product_type VARCHAR(50) NOT NULL DEFAULT 'PHYSICAL_GOOD',
+    description TEXT,
     category_id BIGINT, default_supplier_id BIGINT, purchase_price NUMERIC(12, 2) DEFAULT 0.00,
     sale_price NUMERIC(12, 2) DEFAULT 0.00, unit_of_measure VARCHAR(20) DEFAULT 'UNIT',
     current_stock NUMERIC(12, 3) DEFAULT 0.000, minimum_stock_level NUMERIC(12, 3) DEFAULT 0.000,
