@@ -90,14 +90,50 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "https://one-core-sistems.vercel.app"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true); // Cambiar a false si usás "*"
-        configuration.setMaxAge(3600L); // Cache preflight
+
+        // --- ORÍGENES PERMITIDOS ---
+        // Se especifican los dominios exactos desde los que se permitirán las peticiones.
+        configuration.setAllowedOrigins(Arrays.asList(
+                "http://localhost:3000",
+                "https://one-core-sistems.vercel.app"
+        ));
+
+        // --- MÉTODOS HTTP PERMITIDOS ---
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS"
+        ));
+
+        // --- CABECERAS PERMITIDAS ---
+        // Es una mejor práctica ser explícito en lugar de usar "*", especialmente cuando se usan credenciales.
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "accept",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
+        ));
+
+        // --- CABECERAS EXPUESTAS ---
+        // Permite al frontend leer cabeceras como 'Content-Disposition' para la descarga de archivos.
+        configuration.setExposedHeaders(Arrays.asList(
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Credentials",
+                "Content-Disposition"
+        ));
+
+        // --- PERMITIR CREDENCIALES ---
+        // Crucial para que las cookies y los tokens de autorización funcionen desde otro origen.
+        configuration.setAllowCredentials(true);
+
+        // --- CACHÉ DE PREFLIGHT ---
+        // El navegador puede cachear la respuesta a la petición OPTIONS por este tiempo (en segundos).
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", configuration); // Aplica esta configuración a todas las rutas
+
         return source;
     }
 }

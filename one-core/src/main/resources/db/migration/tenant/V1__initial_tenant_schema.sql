@@ -83,4 +83,21 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     CONSTRAINT fk_sm_user FOREIGN KEY (user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
     );
 
+CREATE TABLE IF NOT EXISTS product_recipes (
+                                               id BIGSERIAL PRIMARY KEY,
+    -- El producto final, 'padre' (ej: la Torta Marquise). Debe ser de tipo COMPOUND.
+                                               main_product_id BIGINT NOT NULL,
+    -- El insumo o ingrediente 'hijo' (ej: Chocolate). Debe ser de tipo PHYSICAL_GOOD.
+                                               ingredient_product_id BIGINT NOT NULL,
+    -- La cantidad de insumo necesaria para hacer UNA unidad del producto principal.
+                                               quantity_required NUMERIC(10, 3) NOT NULL,
+
+    CONSTRAINT fk_recipe_main_product FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_recipe_ingredient_product FOREIGN KEY (ingredient_product_id) REFERENCES products (id) ON DELETE RESTRICT,
+    -- Nos aseguramos de que no se pueda añadir el mismo ingrediente dos veces a la misma receta.
+    UNIQUE (main_product_id, ingredient_product_id)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_pr_main_product_id ON product_recipes(main_product_id);
+
 CREATE INDEX IF NOT EXISTS idx_sm_product_id ON stock_movements(product_id);

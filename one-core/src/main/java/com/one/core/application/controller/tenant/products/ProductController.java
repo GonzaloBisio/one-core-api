@@ -2,6 +2,7 @@ package com.one.core.application.controller.tenant.products;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.application.dto.tenant.product.ProductFilterDTO;
+import com.one.core.application.dto.tenant.product.ProductRecipeDTO;
 import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.domain.service.tenant.product.ProductService;
 import jakarta.validation.Valid;
@@ -14,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/products")
@@ -61,6 +64,26 @@ public class ProductController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{mainProductId}/recipe-items")
+    public ResponseEntity<ProductRecipeDTO> addRecipeItem(
+            @PathVariable Long mainProductId,
+            @Valid @RequestBody ProductRecipeDTO recipeItemDTO) {
+        ProductRecipeDTO createdItem = productService.addRecipeItem(mainProductId, recipeItemDTO);
+        return new ResponseEntity<>(createdItem, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{mainProductId}/recipe-items")
+    public ResponseEntity<List<ProductRecipeDTO>> getRecipeItems(@PathVariable Long mainProductId) {
+        List<ProductRecipeDTO> recipe = productService.getRecipeItems(mainProductId);
+        return ResponseEntity.ok(recipe);
+    }
+
+    @DeleteMapping("/recipe-items/{recipeItemId}")
+    public ResponseEntity<Void> removeRecipeItem(@PathVariable Long recipeItemId) {
+        productService.removeRecipeItem(recipeItemId);
         return ResponseEntity.noContent().build();
     }
 }

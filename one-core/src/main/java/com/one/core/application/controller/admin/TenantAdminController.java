@@ -31,14 +31,9 @@ public class TenantAdminController {
 
         Tenant newTenant = tenantAdminService.createTenantMetadata(requestDTO);
 
-        // Paso 2: Provisionar la infraestructura del schema. Esto es no-transaccional.
         try {
             tenantAdminService.provisionTenantInfrastructure(newTenant.getSchemaName());
         } catch (Exception e) {
-            // Manejo de error si la creación del schema/migración falla DESPUÉS de que los metadatos se crearon.
-            // Para un sistema robusto, aquí deberías tener una lógica de compensación
-            // (ej. borrar el tenant y el usuario creados, o marcarlos como 'provisioning_failed').
-            // Por ahora, logueamos el error y devolvemos un error claro al cliente.
             logger.error("Tenant metadata was created (ID: {}), but infrastructure provisioning failed. Manual intervention may be required.", newTenant.getId(), e);
             String errorMessage = "Tenant user and record were created, but failed to provision the database schema. Error: " + e.getMessage();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorMessage);

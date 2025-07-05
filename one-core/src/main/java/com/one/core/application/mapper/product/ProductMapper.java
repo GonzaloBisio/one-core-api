@@ -42,28 +42,21 @@ public class ProductMapper {
         dto.setActive(product.isActive());
         dto.setBarcode(product.getBarcode());
         dto.setImageUrl(product.getImageUrl());
-        // Podrías incluir createdAt y updatedAt si los tienes en el DTO
-        // dto.setCreatedAt(product.getCreatedAt());
-        // dto.setUpdatedAt(product.getUpdatedAt());
+
         return dto;
     }
 
     /**
      * Mapea los campos de un ProductDTO a una entidad Product existente.
-     * No maneja la carga de ProductCategory o Supplier, eso se hace en el servicio.
-     *
-     * @param dto    El ProductDTO con los datos a mapear.
-     * @param entity La entidad Product a actualizar.
      */
     public void updateEntityFromDTO(ProductDTO dto, Product entity) {
         entity.setName(dto.getName());
+        entity.setProductType(dto.getProductType()); // <-- LÍNEA CLAVE AÑADIDA
         entity.setSku(StringUtils.hasText(dto.getSku()) ? dto.getSku().trim() : null);
         entity.setDescription(dto.getDescription());
         entity.setSalePrice(dto.getSalePrice() != null ? dto.getSalePrice() : BigDecimal.ZERO);
         entity.setPurchasePrice(dto.getPurchasePrice() != null ? dto.getPurchasePrice() : BigDecimal.ZERO);
 
-        // Para el stock, considera si la actualización directa es permitida o si debe ir vía StockMovements.
-        // Por ahora, lo permitimos para una actualización general del producto.
         if (dto.getCurrentStock() != null) {
             entity.setCurrentStock(dto.getCurrentStock());
         }
@@ -75,23 +68,15 @@ public class ProductMapper {
         entity.setActive(dto.isActive());
         entity.setBarcode(dto.getBarcode());
         entity.setImageUrl(dto.getImageUrl());
-
-        // La asignación de category y defaultSupplier se hace en el servicio
-        // después de cargar esas entidades por ID.
     }
 
     /**
      * Crea una nueva entidad Product a partir de un ProductDTO.
-     * No maneja la carga de ProductCategory o Supplier.
      */
     public Product toEntityForCreation(ProductDTO dto) {
         Product entity = new Product();
+        // Al llamar a updateEntityFromDTO, ahora sí se copiará el productType
         updateEntityFromDTO(dto, entity);
-
-        // Campos que se setean solo en la creación y no se actualizan normalmente (o se manejan diferente)
-        // El currentStock y minimumStockLevel ya se manejan en updateEntityFromDTO con valores por defecto
-        // si el DTO los trae nulos, lo cual está bien para la creación.
-        // Si el SKU es generado y no viene del DTO, se manejaría en el servicio.
         return entity;
     }
 }

@@ -10,6 +10,6 @@ import java.math.BigDecimal;
 public class SalesOrderItemRequestDTO {
     @NotNull private Long productId;
     @NotNull @Positive private BigDecimal quantity;
-    @NotNull @DecimalMin("0.0") private BigDecimal unitPrice; // Precio al que se vende este ítem
+    @DecimalMin("0.0") private BigDecimal unitPrice; // Precio al que se vende este ítem
     private BigDecimal discountPerItem; // Opcional
 }

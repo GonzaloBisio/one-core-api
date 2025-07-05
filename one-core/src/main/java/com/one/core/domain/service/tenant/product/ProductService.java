@@ -2,16 +2,20 @@ package com.one.core.domain.service.tenant.product;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.application.dto.tenant.product.ProductFilterDTO;
+import com.one.core.application.dto.tenant.product.ProductRecipeDTO;
 import com.one.core.application.exception.DuplicateFieldException;
 import com.one.core.application.exception.ResourceNotFoundException;
+import com.one.core.application.exception.ValidationException;
 import com.one.core.application.mapper.product.ProductMapper;
 import com.one.core.config.multitenancy.TenantContext;
 import com.one.core.domain.model.enums.IndustryType;
 import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.tenant.product.Product;
 import com.one.core.domain.model.tenant.product.ProductCategory;
+import com.one.core.domain.model.tenant.product.ProductRecipe;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import com.one.core.domain.repository.tenant.product.ProductCategoryRepository;
+import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
 import com.one.core.domain.service.tenant.product.criteria.ProductSpecification;
@@ -35,6 +39,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
+    private final ProductRecipeRepository productRecipeRepository;
     private final ProductMapper productMapper;
     private final ProductUtils productUtils;
 
@@ -42,11 +47,13 @@ public class ProductService {
     public ProductService(ProductRepository productRepository,
                           ProductCategoryRepository categoryRepository,
                           SupplierRepository supplierRepository,
+                          ProductRecipeRepository productRecipeRepository,
                           ProductMapper productMapper,
                           ProductUtils productUtils) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
+        this.productRecipeRepository = productRecipeRepository;
         this.productMapper = productMapper;
         this.productUtils = productUtils;
     }
@@ -169,4 +176,55 @@ public class ProductService {
         if (!productRepository.existsById(id)) throw new ResourceNotFoundException("Product", "id", id);
         productRepository.deleteById(id);
     }
+
+
+    @Transactional
+    public ProductRecipeDTO addRecipeItem(Long mainProductId, ProductRecipeDTO recipeItemDTO) {
+        Product mainProduct = productRepository.findById(mainProductId)
+                .orElseThrow(() -> new ResourceNotFoundException("Main Product", "id", mainProductId));
+        if (mainProduct.getProductType() != ProductType.COMPOUND) {
+            throw new ValidationException("Recipes can only be added to products of type COMPOUND.");
+        }
+
+        Product ingredientProduct = productRepository.findById(recipeItemDTO.getIngredientProductId())
+                .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", recipeItemDTO.getIngredientProductId()));
+        if (ingredientProduct.getProductType() != ProductType.PHYSICAL_GOOD) {
+            throw new ValidationException("Ingredients must be products of type PHYSICAL_GOOD.");
+        }
+
+        ProductRecipe recipeItem = new ProductRecipe();
+        recipeItem.setMainProduct(mainProduct);
+        recipeItem.setIngredientProduct(ingredientProduct);
+        recipeItem.setQuantityRequired(recipeItemDTO.getQuantityRequired());
+
+        ProductRecipe savedItem = productRecipeRepository.save(recipeItem);
+
+        recipeItemDTO.setId(savedItem.getId());
+        recipeItemDTO.setIngredientProductName(ingredientProduct.getName());
+        recipeItemDTO.setIngredientProductSku(ingredientProduct.getSku());
+        return recipeItemDTO;
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductRecipeDTO> getRecipeItems(Long mainProductId) {
+        List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(mainProductId);
+        return recipeItems.stream().map(item -> {
+            ProductRecipeDTO dto = new ProductRecipeDTO();
+            dto.setId(item.getId());
+            dto.setIngredientProductId(item.getIngredientProduct().getId());
+            dto.setIngredientProductName(item.getIngredientProduct().getName());
+            dto.setIngredientProductSku(item.getIngredientProduct().getSku());
+            dto.setQuantityRequired(item.getQuantityRequired());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void removeRecipeItem(Long recipeItemId) {
+        if (!productRecipeRepository.existsById(recipeItemId)) {
+            throw new ResourceNotFoundException("Recipe Item", "id", recipeItemId);
+        }
+        productRecipeRepository.deleteById(recipeItemId);
+    }
+
 }
