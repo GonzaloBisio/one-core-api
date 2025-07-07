@@ -1,5 +1,4 @@
-# Nombre del workflow
-name: Despliegue de API One-Core en AWS EC2
+name: Despliegue de API One-Core en AWS ECS
 
 on:
   push:
@@ -7,64 +6,57 @@ on:
       - main
 
 env:
-  PROJECT_DIR: ./one-core
-  JAR_FILENAME: one-core-0.0.1-SNAPSHOT.jar
-  REMOTE_BASE_PATH: /opt/one-core-api
-  REMOTE_DEPLOY_PATH: /opt/one-core-api/one-core-api.jar
+  AWS_REGION: sa-east-1
+  ECR_REPOSITORY: one-core-api
+  ECS_CLUSTER: one-core-cluster
+  ECS_SERVICE: one-core-service
+  ECS_TASK_DEFINITION: .ecs/task-definition.json
+  CONTAINER_NAME: one-core-api
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
-      # Pasos 1-5 sin cambios
       - name: Checkout del código
         uses: actions/checkout@v4
-      - name: Configurar JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-      - name: Cache de dependencias de Maven
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository
-          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            ${{ runner.os }}-maven-
-      - name: Construir con Maven
-        run: mvn -B package --file ${{ env.PROJECT_DIR }}/pom.xml -DskipTests
-      - name: Crear directorio de despliegue
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            sudo mkdir -p ${{ env.REMOTE_BASE_PATH }}
 
-      # 6. Copiar JAR a la carpeta HOME en EC2 (SIN strip_components)
-      - name: Copiar JAR a la carpeta HOME en EC2
-        uses: appleboy/scp-action@v0.1.7
+      - name: Configurar AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: ${{ env.PROJECT_DIR }}/target/${{ env.JAR_FILENAME }}
-          target: /home/${{ secrets.EC2_USERNAME }}/
-          # La línea strip_components ha sido eliminada
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # 7. Mover JAR y Reiniciar Servicio (Versión limpia final)
-      - name: Mover JAR y Reiniciar Servicio
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Iniciar sesión en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Construir, etiquetar y subir imagen a ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f one-core/Dockerfile ./one-core
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Llenar la definición de tarea con la nueva imagen
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            sudo systemctl stop one-core-api.service || true
-            sudo mv /home/${{ secrets.EC2_USERNAME }}/one-core/target/${{ env.JAR_FILENAME }} ${{ env.REMOTE_DEPLOY_PATH }}
-            sudo chown ec2-user:ec2-user ${{ env.REMOTE_DEPLOY_PATH }}
-            sudo systemctl start one-core-api.service
-            sleep 20
-            sudo systemctl status one-core-api.service
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Desplegar la nueva definición de tarea en ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

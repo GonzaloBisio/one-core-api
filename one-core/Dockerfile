@@ -1,29 +1,37 @@
-# Etapa 1: Construcción con Maven
-FROM maven:3.9-eclipse-temurin-21 AS builder
+# =================================================================
+# ETAPA 1: Construcción (Build Stage)
+# Usamos una imagen de Maven con JDK 21 para compilar el proyecto.
+# =================================================================
+FROM maven:3.9.6-eclipse-temurin-21 AS build
 
-# Establece el directorio de trabajo para la construcción
-WORKDIR /build-src
-
-# Copia solo el pom.xml primero para cachear las dependencias de Maven
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
-
-# Copia el resto del código fuente
-COPY src ./src
-
-# Empaqueta la aplicación (asegúrate que esto genere el JAR en /build-src/target/)
-# -DskipTests es para acelerar el build en el Dockerfile; las pruebas se deben correr antes o en un pipeline de CI.
-RUN mvn package -DskipTests
-
-
-# Etapa 2: Creación de la imagen final
-FROM openjdk:21-jdk-slim
+# Establecemos el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# Copia el JAR desde la etapa de construcción 'builder'
-COPY --from=builder /build-src/target/one-core-0.0.1-SNAPSHOT.jar app.jar
-# Si tu nombre de JAR es diferente, ajústalo arriba.
-# Puedes verificar el nombre exacto en la salida de 'mvn package' o listando /build-src/target/
+# --- CORRECCIÓN AQUÍ ---
+# Copiamos los archivos desde la raíz del contexto de build, que ya es la carpeta "one-core"
+COPY pom.xml .
+COPY src ./src
 
+# Ejecutamos el comando de Maven para construir el proyecto y generar el JAR.
+# -DskipTests omite la ejecución de tests para un build más rápido.
+RUN mvn -B package -DskipTests
+
+
+# =================================================================
+# ETAPA 2: Ejecución (Runtime Stage)
+# Usamos una imagen base de Java mucho más ligera (slim) para la ejecución,
+# lo que resulta en una imagen final más pequeña y segura.
+# =================================================================
+FROM openjdk:21-slim
+
+# Establecemos el directorio de trabajo
+WORKDIR /app
+
+# Copiamos ÚNICAMENTE el archivo .jar desde la etapa de construcción anterior.
+COPY --from=build /app/target/*.jar app.jar
+
+# Exponemos el puerto en el que corre la aplicación Spring Boot
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# El comando que se ejecutará cuando se inicie el contenedor
+ENTRYPOINT ["java", "-jar", "app.jar"]

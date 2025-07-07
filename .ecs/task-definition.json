@@ -1,0 +1,62 @@
+{
+  "family": "one-core-api-task",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "one-core-api",
+      "image": "<IMAGE_URI>",
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "secrets": [
+        {
+          "name": "DB_HOST",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:DB_HOST::"
+        },
+        {
+          "name": "DB_PORT",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:DB_PORT::"
+        },
+        {
+          "name": "DB_NAME",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:DB_NAME::"
+        },
+        {
+          "name": "DB_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:DB_USERNAME::"
+        },
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:DB_PASSWORD::"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:JWT_SECRET::"
+        },
+        {
+          "name": "TENANT_SCHEMA",
+          "valueFrom": "arn:aws:secretsmanager:sa-east-1:307857433882:secret:one-core/prod/credentials-LNc1hz:TENANT_SCHEMA::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/one-core-api-task",
+          "awslogs-region": "sa-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::307857433882:role/ecsTaskExecutionRole"
+}
