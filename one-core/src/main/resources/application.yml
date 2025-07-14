@@ -50,8 +50,8 @@ jwt:
 # Logging
 logging:
   level:
-    root: INFO
-    org.springframework.web: INFO
+    root: DEBUG
+    org.springframework.web: DEBUG
     org.springframework.security: INFO
     com.one.core: DEBUG
     org.hibernate.SQL: INFO

@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -60,14 +61,8 @@ public class ProductService {
 
     @Transactional
     public ProductDTO createProduct(ProductDTO productDTO) {
-        if (StringUtils.hasText(productDTO.getSku()) && productRepository.existsBySku(productDTO.getSku().trim())) {
-            throw new DuplicateFieldException("Product SKU", productDTO.getSku().trim());
-        }
-
         Product product = productMapper.toEntityForCreation(productDTO);
 
-        // --- LÓGICA DE ADAPTACIÓN INTELIGENTE ---
-        // 1. Asignar tipo de producto por defecto si no se especifica
         if (product.getProductType() == null) {
             String industryType = TenantContext.getCurrentTenantIndustryType();
             if (IndustryType.GYM.name().equals(industryType)) {
@@ -79,19 +74,27 @@ public class ProductService {
             }
         }
 
-        // 2. Lógica condicional basada en el tipo de producto final
-        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
-            // Los servicios o suscripciones no tienen stock
-            product.setCurrentStock(BigDecimal.ZERO);
-            product.setMinimumStockLevel(BigDecimal.ZERO);
-        } else {
-            // Solo los bienes físicos necesitan SKU y código de barras por defecto
-            if (!StringUtils.hasText(product.getSku())) {
+        if (product.getProductType() == ProductType.COMPOUND) {
+            product.setBarcode(null);
+            if (StringUtils.hasText(product.getSku()) && productRepository.existsBySku(product.getSku().trim())) {
+                throw new DuplicateFieldException("Product SKU", product.getSku().trim());
+            }
+        } else if (product.getProductType() == ProductType.PHYSICAL_GOOD) {
+            if (StringUtils.hasText(product.getSku())) {
+                if(productRepository.existsBySku(product.getSku().trim())) {
+                    throw new DuplicateFieldException("Product SKU", product.getSku().trim());
+                }
+            } else {
                 product.setSku(productUtils.generateSku());
             }
             if (!StringUtils.hasText(product.getBarcode())) {
                 product.setBarcode(productUtils.generateBarcode());
             }
+        }
+
+        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
+            product.setCurrentStock(BigDecimal.ZERO);
+            product.setMinimumStockLevel(BigDecimal.ZERO);
         }
 
         if (productDTO.getCategoryId() != null) {
@@ -174,35 +177,42 @@ public class ProductService {
     @Transactional
     public void deleteProduct(Long id) {
         if (!productRepository.existsById(id)) throw new ResourceNotFoundException("Product", "id", id);
+        List<ProductRecipe> recipe = productRecipeRepository.findByMainProductId(id);
+        productRecipeRepository.deleteAll(recipe);
         productRepository.deleteById(id);
     }
 
-
     @Transactional
-    public ProductRecipeDTO addRecipeItem(Long mainProductId, ProductRecipeDTO recipeItemDTO) {
+    public List<ProductRecipeDTO> setOrUpdateRecipe(Long mainProductId, List<ProductRecipeDTO> recipeItemsDTO) {
         Product mainProduct = productRepository.findById(mainProductId)
                 .orElseThrow(() -> new ResourceNotFoundException("Main Product", "id", mainProductId));
         if (mainProduct.getProductType() != ProductType.COMPOUND) {
-            throw new ValidationException("Recipes can only be added to products of type COMPOUND.");
+            throw new ValidationException("Recipes can only be set for products of type COMPOUND.");
         }
 
-        Product ingredientProduct = productRepository.findById(recipeItemDTO.getIngredientProductId())
-                .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", recipeItemDTO.getIngredientProductId()));
-        if (ingredientProduct.getProductType() != ProductType.PHYSICAL_GOOD) {
-            throw new ValidationException("Ingredients must be products of type PHYSICAL_GOOD.");
+        List<ProductRecipe> oldRecipe = productRecipeRepository.findByMainProductId(mainProductId);
+        if (!oldRecipe.isEmpty()) {
+            productRecipeRepository.deleteAllInBatch(oldRecipe);
         }
 
-        ProductRecipe recipeItem = new ProductRecipe();
-        recipeItem.setMainProduct(mainProduct);
-        recipeItem.setIngredientProduct(ingredientProduct);
-        recipeItem.setQuantityRequired(recipeItemDTO.getQuantityRequired());
+        List<ProductRecipe> newRecipeItems = new ArrayList<>();
+        for (ProductRecipeDTO itemDTO : recipeItemsDTO) {
+            Product ingredientProduct = productRepository.findById(itemDTO.getIngredientProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", itemDTO.getIngredientProductId()));
+            if (ingredientProduct.getProductType() != ProductType.PHYSICAL_GOOD) {
+                throw new ValidationException("Ingredient '" + ingredientProduct.getName() + "' must be a PHYSICAL_GOOD.");
+            }
 
-        ProductRecipe savedItem = productRecipeRepository.save(recipeItem);
+            ProductRecipe recipeItem = new ProductRecipe();
+            recipeItem.setMainProduct(mainProduct);
+            recipeItem.setIngredientProduct(ingredientProduct);
+            recipeItem.setQuantityRequired(itemDTO.getQuantityRequired());
+            newRecipeItems.add(recipeItem);
+        }
 
-        recipeItemDTO.setId(savedItem.getId());
-        recipeItemDTO.setIngredientProductName(ingredientProduct.getName());
-        recipeItemDTO.setIngredientProductSku(ingredientProduct.getSku());
-        return recipeItemDTO;
+        productRecipeRepository.saveAllAndFlush(newRecipeItems);
+
+        return getRecipeItems(mainProductId);
     }
 
     @Transactional(readOnly = true)

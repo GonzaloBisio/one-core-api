@@ -67,12 +67,12 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{mainProductId}/recipe-items")
-    public ResponseEntity<ProductRecipeDTO> addRecipeItem(
+    @PutMapping("/{mainProductId}/recipe")
+    public ResponseEntity<List<ProductRecipeDTO>> setOrUpdateRecipe(
             @PathVariable Long mainProductId,
-            @Valid @RequestBody ProductRecipeDTO recipeItemDTO) {
-        ProductRecipeDTO createdItem = productService.addRecipeItem(mainProductId, recipeItemDTO);
-        return new ResponseEntity<>(createdItem, HttpStatus.CREATED);
+            @Valid @RequestBody List<ProductRecipeDTO> recipeItems) {
+        List<ProductRecipeDTO> updatedRecipe = productService.setOrUpdateRecipe(mainProductId, recipeItems);
+        return ResponseEntity.ok(updatedRecipe);
     }
 
     @GetMapping("/{mainProductId}/recipe-items")
