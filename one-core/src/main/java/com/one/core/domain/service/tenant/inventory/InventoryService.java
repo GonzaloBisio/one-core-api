@@ -48,14 +48,14 @@ public class InventoryService {
     }
 
     private void validateProductIsStockable(Product product) {
-        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
+        ProductType type = product.getProductType();
+        if (type == ProductType.SERVICE || type == ProductType.SUBSCRIPTION || type == ProductType.DIGITAL) {
             throw new ValidationException(
-                    String.format("Stock operations cannot be performed on product '%s' because it is not a physical good (type: %s).",
-                            product.getName(), product.getProductType())
+                    String.format("Stock operations cannot be performed on product '%s' because it is not a stockable type (type: %s).",
+                            product.getName(), type)
             );
         }
     }
-
     @Transactional(propagation = Propagation.MANDATORY)
     protected StockMovement recordMovementAndUpdateProductStock(
             Long productId,

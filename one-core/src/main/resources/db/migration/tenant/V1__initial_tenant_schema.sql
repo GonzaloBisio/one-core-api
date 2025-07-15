@@ -113,6 +113,25 @@ CREATE TABLE IF NOT EXISTS product_packaging (
     UNIQUE (main_product_id, packaging_product_id)
     );
 
+CREATE TABLE IF NOT EXISTS production_orders (
+                                                 id BIGSERIAL PRIMARY KEY,
+    -- El producto que se fabricó (debe ser de tipo COMPOUND)
+                                                 product_id BIGINT NOT NULL,
+    -- La cantidad que se fabricó en esta tanda
+                                                 quantity_produced NUMERIC(12, 3) NOT NULL,
+    -- La fecha en que se realizó la producción
+    production_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    -- Notas adicionales sobre la producción (ej: "Lote para evento X")
+    notes TEXT,
+    -- El usuario que registró la producción
+    created_by_user_id BIGINT,
+    -- Timestamp de creación
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_po_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_po_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
+    );
+
 CREATE INDEX IF NOT EXISTS idx_pp_main_product_id ON product_packaging(main_product_id);
 
 CREATE INDEX IF NOT EXISTS idx_pr_main_product_id ON product_recipes(main_product_id);

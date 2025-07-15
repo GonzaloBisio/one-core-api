@@ -12,5 +12,6 @@ public class ProductFilterDTO {
     private String sku;
     private Long categoryId;
     private Boolean isActive;
+    private String productType;
     // Puedes añadir más campos de filtro según necesites (ej. rango de precios)
 }

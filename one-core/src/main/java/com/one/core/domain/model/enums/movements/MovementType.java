@@ -8,6 +8,7 @@ public enum MovementType {
     CUSTOMER_RETURN,    // Devolución de cliente
     SUPPLIER_RETURN,    // Devolución a proveedor
     ADJUSTMENT_IN,      // Ajuste manual de entrada
+    PRODUCTION_IN,   // Entrada por producción
     ADJUSTMENT_OUT,     // Ajuste manual de salida (no por venta)
     WASTAGE,           // Merma, pérdida, vencimiento
     COMPONENT_CONSUMPTION, // Consumo de componente en producción

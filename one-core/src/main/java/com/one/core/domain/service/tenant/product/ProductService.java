@@ -99,7 +99,10 @@ public class ProductService {
             }
         }
 
-        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
+        // --- LÓGICA MODIFICADA ---
+        // Ahora, solo los productos que NO son inventariables (servicios, etc.) tendrán su stock forzado a cero.
+        // Los COMPOUND ya no entran en esta regla.
+        if (product.getProductType() == ProductType.SERVICE || product.getProductType() == ProductType.SUBSCRIPTION || product.getProductType() == ProductType.DIGITAL) {
             product.setCurrentStock(BigDecimal.ZERO);
             product.setMinimumStockLevel(BigDecimal.ZERO);
         }
@@ -132,11 +135,11 @@ public class ProductService {
 
         productMapper.updateEntityFromDTO(productDTO, product);
 
-        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
+        // --- LÓGICA MODIFICADA ---
+        if (product.getProductType() == ProductType.SERVICE || product.getProductType() == ProductType.SUBSCRIPTION || product.getProductType() == ProductType.DIGITAL) {
             product.setCurrentStock(BigDecimal.ZERO);
             product.setMinimumStockLevel(BigDecimal.ZERO);
         }
-
 
         if (productDTO.getCategoryId() != null) {
             ProductCategory category = categoryRepository.findById(productDTO.getCategoryId())

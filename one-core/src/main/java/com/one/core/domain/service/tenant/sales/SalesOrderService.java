@@ -112,8 +112,8 @@ public class SalesOrderService {
                 }
             }
 
-            if (product.getProductType() == ProductType.PHYSICAL_GOOD) {
-                hasPhysicalGoods = true;
+            if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.COMPOUND) {
+                hasPhysicalGoods = true; // Consideramos que los compuestos también pueden ser físicos en su entrega
             }
 
             SalesOrderItem orderItem = salesOrderMapper.itemRequestDtoToEntity(itemDto, product);
@@ -140,65 +140,13 @@ public class SalesOrderService {
             throw new ValidationException("Sales order cannot be confirmed from its current status: " + order.getStatus());
         }
 
+        // 1. Validar disponibilidad de stock (productos y packaging)
         validateStockAvailability(order);
 
+        // 2. Si hay stock, procesar todos los descuentos
         processStockDeductions(order, currentUser.getId());
 
         order.setStatus(SalesOrderStatus.PREPARING_ORDER);
-        SalesOrder updatedOrder = salesOrderRepository.save(order);
-
-        return salesOrderMapper.toDTO(updatedOrder);
-    }
-
-    @Transactional(readOnly = true)
-    public SalesOrderDTO getSalesOrderById(Long id) {
-        SalesOrder order = salesOrderRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", id));
-        return salesOrderMapper.toDTO(order);
-    }
-
-    @Transactional(readOnly = true)
-    public Page<SalesOrderDTO> getAllSalesOrders(SalesOrderFilterDTO filterDTO, Pageable pageable) {
-        Specification<SalesOrder> spec = SalesOrderSpecification.filterBy(filterDTO);
-        Page<SalesOrder> orderPage = salesOrderRepository.findAll(spec, pageable);
-
-        List<SalesOrderDTO> orderDTOs = orderPage.getContent().stream()
-                .map(salesOrderMapper::toDTO)
-                .collect(Collectors.toList());
-        return new PageImpl<>(orderDTOs, pageable, orderPage.getTotalElements());
-    }
-
-    @Transactional
-    public SalesOrderDTO shipOrder(Long salesOrderId) {
-        SalesOrder order = salesOrderRepository.findById(salesOrderId)
-                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
-
-        // Solo se puede despachar una orden que se está preparando.
-        if (order.getStatus() != SalesOrderStatus.PREPARING_ORDER) {
-            throw new ValidationException("Order cannot be shipped from its current status: " + order.getStatus());
-        }
-
-        // Aquí podrías añadir lógica para generar una guía de envío, notificar al cliente, etc.
-        logger.info("Shipping order ID: {}", salesOrderId);
-
-        order.setStatus(SalesOrderStatus.SHIPPED);
-        SalesOrder updatedOrder = salesOrderRepository.save(order);
-        return salesOrderMapper.toDTO(updatedOrder);
-    }
-
-    @Transactional
-    public SalesOrderDTO deliverOrder(Long salesOrderId) {
-        SalesOrder order = salesOrderRepository.findById(salesOrderId)
-                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
-
-        // Solo se puede entregar una orden que ha sido despachada.
-        if (order.getStatus() != SalesOrderStatus.SHIPPED) {
-            throw new ValidationException("Order cannot be delivered from its current status: " + order.getStatus());
-        }
-
-        logger.info("Delivering order ID: {}", salesOrderId);
-
-        order.setStatus(SalesOrderStatus.DELIVERED);
         SalesOrder updatedOrder = salesOrderRepository.save(order);
         return salesOrderMapper.toDTO(updatedOrder);
     }
@@ -226,29 +174,21 @@ public class SalesOrderService {
     }
 
 
+    // --- MÉTODOS DE AYUDA (HELPERS) PARA MAYOR CLARIDAD ---
+
     private void validateStockAvailability(SalesOrder order) {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // Validar producto/insumos
-            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
+            // --- LÓGICA SIMPLIFICADA ---
+            // Ahora, tanto PHYSICAL_GOOD como COMPOUND son inventariables y se tratan igual.
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
                 if (!inventoryService.isStockAvailable(productSold.getId(), item.getQuantity())) {
                     throw new ValidationException("Insufficient stock for product: " + productSold.getName());
                 }
-            } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                if (recipeItems.isEmpty()) {
-                    throw new ValidationException("Product " + productSold.getName() + " is compound but has no recipe defined.");
-                }
-                for (ProductRecipe recipeItem : recipeItems) {
-                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                    if (!inventoryService.isStockAvailable(recipeItem.getIngredientProduct().getId(), requiredQuantity)) {
-                        throw new ValidationException("Insufficient stock for ingredient: " + recipeItem.getIngredientProduct().getName());
-                    }
-                }
             }
 
-            // Validar packaging
+            // La validación de packaging no cambia.
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packaging : packagingItems) {
                 BigDecimal requiredQuantity = packaging.getQuantity().multiply(item.getQuantity());
@@ -263,18 +203,16 @@ public class SalesOrderService {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // Descontar producto/insumos
-            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
-                inventoryService.processOutgoingStock(productSold.getId(), item.getQuantity(), MovementType.SALE_CONFIRMED, "SALES_ORDER", order.getId().toString(), userId, "Sale for order ID: " + order.getId());
-            } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                for (ProductRecipe recipeItem : recipeItems) {
-                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                    inventoryService.processOutgoingStock(recipeItem.getIngredientProduct().getId(), requiredQuantity, MovementType.COMPONENT_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Consumption for " + productSold.getName());
-                }
+            // --- LÓGICA SIMPLIFICADA ---
+            // Se descuenta el stock del producto vendido, sin importar si es simple o compuesto.
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
+                inventoryService.processOutgoingStock(
+                        productSold.getId(), item.getQuantity(), MovementType.SALE_CONFIRMED,
+                        "SALES_ORDER", order.getId().toString(), userId, "Sale for order ID: " + order.getId()
+                );
             }
 
-            // Descontar packaging
+            // La lógica de descuento de packaging no cambia.
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packagingItem : packagingItems) {
                 BigDecimal quantityToConsume = packagingItem.getQuantity().multiply(item.getQuantity());
@@ -287,18 +225,16 @@ public class SalesOrderService {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // Devolver stock de producto/insumos
-            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
-                inventoryService.processIncomingStock(productSold.getId(), item.getQuantity(), MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Stock returned for cancelled order ID: " + order.getId());
-            } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                for (ProductRecipe recipeItem : recipeItems) {
-                    BigDecimal quantityToReturn = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                    inventoryService.processIncomingStock(recipeItem.getIngredientProduct().getId(), quantityToReturn, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Component stock returned for cancelled order ID: " + order.getId());
-                }
+            // --- LÓGICA SIMPLIFICADA ---
+            // Se devuelve el stock del producto vendido, sea simple o compuesto.
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
+                inventoryService.processIncomingStock(
+                        productSold.getId(), item.getQuantity(), MovementType.SALE_CANCELLED,
+                        "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Stock returned for cancelled order ID: " + order.getId()
+                );
             }
 
-            // Devolver stock de packaging
+            // La lógica de devolución de packaging no cambia.
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packagingItem : packagingItems) {
                 BigDecimal quantityToReturn = packagingItem.getQuantity().multiply(item.getQuantity());
@@ -307,7 +243,53 @@ public class SalesOrderService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public SalesOrderDTO getSalesOrderById(Long id) {
+        SalesOrder order = salesOrderRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", id));
+        return salesOrderMapper.toDTO(order);
+    }
 
+    @Transactional(readOnly = true)
+    public Page<SalesOrderDTO> getAllSalesOrders(SalesOrderFilterDTO filterDTO, Pageable pageable) {
+        Specification<SalesOrder> spec = SalesOrderSpecification.filterBy(filterDTO);
+        Page<SalesOrder> orderPage = salesOrderRepository.findAll(spec, pageable);
 
+        List<SalesOrderDTO> orderDTOs = orderPage.getContent().stream()
+                .map(salesOrderMapper::toDTO)
+                .collect(Collectors.toList());
+        return new PageImpl<>(orderDTOs, pageable, orderPage.getTotalElements());
+    }
 
+    @Transactional
+    public SalesOrderDTO shipOrder(Long salesOrderId) {
+        SalesOrder order = salesOrderRepository.findById(salesOrderId)
+                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
+
+        if (order.getStatus() != SalesOrderStatus.PREPARING_ORDER) {
+            throw new ValidationException("Order cannot be shipped from its current status: " + order.getStatus());
+        }
+
+        logger.info("Shipping order ID: {}", salesOrderId);
+
+        order.setStatus(SalesOrderStatus.SHIPPED);
+        SalesOrder updatedOrder = salesOrderRepository.save(order);
+        return salesOrderMapper.toDTO(updatedOrder);
+    }
+
+    @Transactional
+    public SalesOrderDTO deliverOrder(Long salesOrderId) {
+        SalesOrder order = salesOrderRepository.findById(salesOrderId)
+                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
+
+        if (order.getStatus() != SalesOrderStatus.SHIPPED) {
+            throw new ValidationException("Order cannot be delivered from its current status: " + order.getStatus());
+        }
+
+        logger.info("Delivering order ID: {}", salesOrderId);
+
+        order.setStatus(SalesOrderStatus.DELIVERED);
+        SalesOrder updatedOrder = salesOrderRepository.save(order);
+        return salesOrderMapper.toDTO(updatedOrder);
+    }
 }

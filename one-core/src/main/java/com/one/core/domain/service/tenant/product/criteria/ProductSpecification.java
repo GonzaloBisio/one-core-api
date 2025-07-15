@@ -38,6 +38,10 @@ public class ProductSpecification {
                 predicates.add(criteriaBuilder.equal(root.get("isActive"), filter.getIsActive()));
             }
 
+            if (filter.getProductType() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("productType"), filter.getProductType()));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
