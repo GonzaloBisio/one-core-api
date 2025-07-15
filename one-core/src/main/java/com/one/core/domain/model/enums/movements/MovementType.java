@@ -10,5 +10,6 @@ public enum MovementType {
     ADJUSTMENT_IN,      // Ajuste manual de entrada
     ADJUSTMENT_OUT,     // Ajuste manual de salida (no por venta)
     WASTAGE,           // Merma, pérdida, vencimiento
-    COMPONENT_CONSUMPTION // Consumo de componente en producción
+    COMPONENT_CONSUMPTION, // Consumo de componente en producción
+    PACKAGING_CONSUMPTION
 }

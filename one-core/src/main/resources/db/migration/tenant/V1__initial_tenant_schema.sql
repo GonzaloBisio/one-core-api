@@ -98,6 +98,25 @@ CREATE TABLE IF NOT EXISTS product_recipes (
     UNIQUE (main_product_id, ingredient_product_id)
     );
 
+CREATE TABLE IF NOT EXISTS product_packaging (
+                                                 id BIGSERIAL PRIMARY KEY,
+    -- El producto principal que requiere empaque (ej: Torta)
+                                                 main_product_id BIGINT NOT NULL,
+    -- El producto que actúa como empaque (ej: Caja de Torta). Debe ser de tipo PHYSICAL_GOOD.
+                                                 packaging_product_id BIGINT NOT NULL,
+    -- La cantidad de empaque necesaria por cada unidad del producto principal.
+                                                 quantity NUMERIC(10, 3) NOT NULL DEFAULT 1,
+
+    CONSTRAINT fk_packaging_main_product FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_packaging_item_product FOREIGN KEY (packaging_product_id) REFERENCES products (id) ON DELETE RESTRICT,
+    -- Evita que se añada el mismo empaque dos veces al mismo producto.
+    UNIQUE (main_product_id, packaging_product_id)
+    );
+
+CREATE INDEX IF NOT EXISTS idx_pp_main_product_id ON product_packaging(main_product_id);
+
 CREATE INDEX IF NOT EXISTS idx_pr_main_product_id ON product_recipes(main_product_id);
 
 CREATE INDEX IF NOT EXISTS idx_sm_product_id ON stock_movements(product_id);
+
+

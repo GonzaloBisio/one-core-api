@@ -14,11 +14,13 @@ import com.one.core.domain.model.enums.movements.MovementType;
 import com.one.core.domain.model.enums.sales.SalesOrderStatus;
 import com.one.core.domain.model.tenant.customer.Customer;
 import com.one.core.domain.model.tenant.product.Product;
+import com.one.core.domain.model.tenant.product.ProductPackaging;
 import com.one.core.domain.model.tenant.product.ProductRecipe;
 import com.one.core.domain.model.tenant.sales.SalesOrder;
 import com.one.core.domain.model.tenant.sales.SalesOrderItem;
 import com.one.core.domain.repository.admin.SystemUserRepository;
 import com.one.core.domain.repository.tenant.customer.CustomerRepository;
+import com.one.core.domain.repository.tenant.product.ProductPackagingRepository;
 import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.sales.SalesOrderRepository;
@@ -51,6 +53,8 @@ public class SalesOrderService {
     private final InventoryService inventoryService;
     private final SystemUserRepository systemUserRepository;
     private final ProductRecipeRepository productRecipeRepository;
+    private final ProductPackagingRepository productPackagingRepository;
+
 
     @Autowired
     public SalesOrderService(SalesOrderRepository salesOrderRepository,
@@ -59,7 +63,8 @@ public class SalesOrderService {
                              SalesOrderMapper salesOrderMapper,
                              InventoryService inventoryService,
                              SystemUserRepository systemUserRepository,
-                             ProductRecipeRepository productRecipeRepository) {
+                             ProductRecipeRepository productRecipeRepository,
+                             ProductPackagingRepository productPackagingRepository) {
         this.salesOrderRepository = salesOrderRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -67,6 +72,7 @@ public class SalesOrderService {
         this.inventoryService = inventoryService;
         this.productRecipeRepository = productRecipeRepository;
         this.systemUserRepository = systemUserRepository;
+        this.productPackagingRepository = productPackagingRepository;
     }
 
     @Transactional
@@ -97,19 +103,14 @@ public class SalesOrderService {
             Product product = productRepository.findById(itemDto.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemDto.getProductId()));
 
-            // --- INICIO DE LA LÓGICA DE PRECIO INTELIGENTE ---
             if (itemDto.getUnitPrice() == null) {
-                // Si no se especifica un precio, usamos el precio de lista del producto.
                 itemDto.setUnitPrice(product.getSalePrice());
-
-                // Validamos que el producto tenga un precio de lista válido.
                 if (itemDto.getUnitPrice() == null || itemDto.getUnitPrice().compareTo(BigDecimal.ZERO) <= 0) {
                     throw new ValidationException(
                             "Product '" + product.getName() + "' does not have a default sale price. A price must be specified in the order."
                     );
                 }
             }
-            // --- FIN DE LA LÓGICA DE PRECIO INTELIGENTE ---
 
             if (product.getProductType() == ProductType.PHYSICAL_GOOD) {
                 hasPhysicalGoods = true;
@@ -139,47 +140,9 @@ public class SalesOrderService {
             throw new ValidationException("Sales order cannot be confirmed from its current status: " + order.getStatus());
         }
 
-        // Primero, validamos la disponibilidad de stock para todos los componentes necesarios
-        for (SalesOrderItem item : order.getItems()) {
-            Product productSold = item.getProduct();
-            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
-                if (!inventoryService.isStockAvailable(productSold.getId(), item.getQuantity())) {
-                    throw new ValidationException("Insufficient stock for product: " + productSold.getName());
-                }
-            } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                if (recipeItems.isEmpty()) {
-                    throw new ValidationException("Product " + productSold.getName() + " is compound but has no recipe defined.");
-                }
-                for (ProductRecipe recipeItem : recipeItems) {
-                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                    if (!inventoryService.isStockAvailable(recipeItem.getIngredientProduct().getId(), requiredQuantity)) {
-                        throw new ValidationException("Insufficient stock for ingredient: " + recipeItem.getIngredientProduct().getName());
-                    }
-                }
-            }
-        }
+        validateStockAvailability(order);
 
-        Long processingSystemUserId = currentUser.getId();
-
-        for (SalesOrderItem item : order.getItems()) {
-            Product productSold = item.getProduct();
-            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
-                inventoryService.processOutgoingStock(
-                        productSold.getId(), item.getQuantity(), MovementType.SALE_CONFIRMED,
-                        "SALES_ORDER", order.getId().toString(), processingSystemUserId, "Sale for order ID: " + order.getId()
-                );
-            } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                for (ProductRecipe recipeItem : recipeItems) {
-                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                    inventoryService.processOutgoingStock(
-                            recipeItem.getIngredientProduct().getId(), requiredQuantity, MovementType.COMPONENT_CONSUMPTION,
-                            "SALES_ORDER", order.getId().toString(), processingSystemUserId, "Consumption for " + productSold.getName()
-                    );
-                }
-            }
-        }
+        processStockDeductions(order, currentUser.getId());
 
         order.setStatus(SalesOrderStatus.PREPARING_ORDER);
         SalesOrder updatedOrder = salesOrderRepository.save(order);
@@ -245,47 +208,106 @@ public class SalesOrderService {
         SalesOrder order = salesOrderRepository.findById(salesOrderId)
                 .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", salesOrderId));
 
-        // No se puede cancelar una orden ya despachada o entregada.
         if (order.getStatus() == SalesOrderStatus.SHIPPED || order.getStatus() == SalesOrderStatus.DELIVERED) {
             throw new ValidationException("Cannot cancel an order that has already been shipped or delivered.");
         }
-
-        // Si la orden ya estaba cancelada, no hacemos nada.
         if (order.getStatus() == SalesOrderStatus.CANCELLED) {
             return salesOrderMapper.toDTO(order);
         }
 
-        // --- LÓGICA CRÍTICA: DEVOLUCIÓN DE STOCK ---
-        // Si la orden estaba en "PREPARING_ORDER", significa que el stock ya fue descontado.
-        // Debemos devolverlo.
         if (order.getStatus() == SalesOrderStatus.PREPARING_ORDER) {
             logger.info("Order {} is being cancelled. Returning stock to inventory.", salesOrderId);
-
-            for (SalesOrderItem item : order.getItems()) {
-                Product productSold = item.getProduct();
-                if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
-                    inventoryService.processIncomingStock( // Usamos el método de ENTRADA
-                            productSold.getId(), item.getQuantity(), MovementType.SALE_CANCELLED,
-                            "SALES_ORDER_CANCEL", order.getId().toString(), currentUser.getId(),
-                            "Stock returned for cancelled order ID: " + order.getId()
-                    );
-                } else if (productSold.getProductType() == ProductType.COMPOUND) {
-                    List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
-                    for (ProductRecipe recipeItem : recipeItems) {
-                        BigDecimal quantityToReturn = recipeItem.getQuantityRequired().multiply(item.getQuantity());
-                        inventoryService.processIncomingStock( // Devolvemos el stock de cada INSUMO
-                                recipeItem.getIngredientProduct().getId(), quantityToReturn, MovementType.SALE_CANCELLED,
-                                "SALES_ORDER_CANCEL", order.getId().toString(), currentUser.getId(),
-                                "Component stock returned for cancelled order ID: " + order.getId()
-                        );
-                    }
-                }
-            }
+            returnStockForOrder(order, currentUser.getId());
         }
 
         order.setStatus(SalesOrderStatus.CANCELLED);
         SalesOrder updatedOrder = salesOrderRepository.save(order);
         return salesOrderMapper.toDTO(updatedOrder);
     }
+
+
+    private void validateStockAvailability(SalesOrder order) {
+        for (SalesOrderItem item : order.getItems()) {
+            Product productSold = item.getProduct();
+
+            // Validar producto/insumos
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
+                if (!inventoryService.isStockAvailable(productSold.getId(), item.getQuantity())) {
+                    throw new ValidationException("Insufficient stock for product: " + productSold.getName());
+                }
+            } else if (productSold.getProductType() == ProductType.COMPOUND) {
+                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
+                if (recipeItems.isEmpty()) {
+                    throw new ValidationException("Product " + productSold.getName() + " is compound but has no recipe defined.");
+                }
+                for (ProductRecipe recipeItem : recipeItems) {
+                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
+                    if (!inventoryService.isStockAvailable(recipeItem.getIngredientProduct().getId(), requiredQuantity)) {
+                        throw new ValidationException("Insufficient stock for ingredient: " + recipeItem.getIngredientProduct().getName());
+                    }
+                }
+            }
+
+            // Validar packaging
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packaging : packagingItems) {
+                BigDecimal requiredQuantity = packaging.getQuantity().multiply(item.getQuantity());
+                if (!inventoryService.isStockAvailable(packaging.getPackagingProduct().getId(), requiredQuantity)) {
+                    throw new ValidationException("Insufficient stock for packaging: " + packaging.getPackagingProduct().getName());
+                }
+            }
+        }
+    }
+
+    private void processStockDeductions(SalesOrder order, Long userId) {
+        for (SalesOrderItem item : order.getItems()) {
+            Product productSold = item.getProduct();
+
+            // Descontar producto/insumos
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
+                inventoryService.processOutgoingStock(productSold.getId(), item.getQuantity(), MovementType.SALE_CONFIRMED, "SALES_ORDER", order.getId().toString(), userId, "Sale for order ID: " + order.getId());
+            } else if (productSold.getProductType() == ProductType.COMPOUND) {
+                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
+                for (ProductRecipe recipeItem : recipeItems) {
+                    BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(item.getQuantity());
+                    inventoryService.processOutgoingStock(recipeItem.getIngredientProduct().getId(), requiredQuantity, MovementType.COMPONENT_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Consumption for " + productSold.getName());
+                }
+            }
+
+            // Descontar packaging
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packagingItem : packagingItems) {
+                BigDecimal quantityToConsume = packagingItem.getQuantity().multiply(item.getQuantity());
+                inventoryService.processOutgoingStock(packagingItem.getPackagingProduct().getId(), quantityToConsume, MovementType.PACKAGING_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Packaging for product: " + productSold.getName());
+            }
+        }
+    }
+
+    private void returnStockForOrder(SalesOrder order, Long userId) {
+        for (SalesOrderItem item : order.getItems()) {
+            Product productSold = item.getProduct();
+
+            // Devolver stock de producto/insumos
+            if (productSold.getProductType() == ProductType.PHYSICAL_GOOD) {
+                inventoryService.processIncomingStock(productSold.getId(), item.getQuantity(), MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Stock returned for cancelled order ID: " + order.getId());
+            } else if (productSold.getProductType() == ProductType.COMPOUND) {
+                List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productSold.getId());
+                for (ProductRecipe recipeItem : recipeItems) {
+                    BigDecimal quantityToReturn = recipeItem.getQuantityRequired().multiply(item.getQuantity());
+                    inventoryService.processIncomingStock(recipeItem.getIngredientProduct().getId(), quantityToReturn, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Component stock returned for cancelled order ID: " + order.getId());
+                }
+            }
+
+            // Devolver stock de packaging
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packagingItem : packagingItems) {
+                BigDecimal quantityToReturn = packagingItem.getQuantity().multiply(item.getQuantity());
+                inventoryService.processIncomingStock(packagingItem.getPackagingProduct().getId(), quantityToReturn, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Packaging stock returned for product: " + productSold.getName());
+            }
+        }
+    }
+
+
+
 
 }
