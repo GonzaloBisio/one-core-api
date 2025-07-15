@@ -36,15 +36,16 @@ public class ExcelReportHelper {
     private CellStyle dateStyle;
     private CellStyle defaultCellStyle;
 
-    public ByteArrayInputStream createWeeklySummaryExcel(
-            List<SalesOrder> sales, List<PurchaseOrder> purchases,
-            BigDecimal totalSales, BigDecimal totalCostOfGoodsSold, BigDecimal totalPurchases,
-            LocalDate start, LocalDate end) {
+    public ByteArrayInputStream createOperationalSummaryExcel(
+            String reportTitle, List<SalesOrder> sales, List<PurchaseOrder> purchases,
+            BigDecimal totalSales, BigDecimal totalCostOfGoodsSold, BigDecimal totalPurchases) {
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             this.workbook = new XSSFWorkbook();
             createStyles();
-            createSummarySheet(totalSales, totalCostOfGoodsSold, totalPurchases, start, end);
+
+            // Pasamos el título dinámico a la hoja de resumen
+            createSummarySheet(reportTitle, totalSales, totalCostOfGoodsSold, totalPurchases);
 
             createDetailedSheet("Detalle de Ventas", getSalesHeaders(), sales);
             createDetailedSheet("Detalle de Compras", getPurchasesHeaders(), purchases);
@@ -107,14 +108,15 @@ public class ExcelReportHelper {
     }
 
     // --- HOJA DE RESUMEN CON LÓGICA DE CELDAS CORREGIDA ---
-    private void createSummarySheet(BigDecimal totalSales, BigDecimal totalCostOfGoodsSold, BigDecimal totalPurchases, LocalDate start, LocalDate end) {
-        XSSFSheet sheet = workbook.createSheet("Resumen Semanal");
+    private void createSummarySheet(String reportTitle, BigDecimal totalSales, BigDecimal totalCostOfGoodsSold, BigDecimal totalPurchases) {
+        XSSFSheet sheet = workbook.createSheet("Resumen");
 
         BigDecimal grossProfit = totalSales.subtract(totalCostOfGoodsSold);
 
+        // --- Título dinámico ---
         Row titleRow = sheet.createRow(1);
         titleRow.setHeightInPoints(30);
-        Cell titleCell = createCell(titleRow, 1, "Resumen Semanal: " + start.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")) + " al " + end.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), titleStyle);
+        Cell titleCell = createCell(titleRow, 1, reportTitle, titleStyle);
         sheet.addMergedRegion(new CellRangeAddress(1, 1, 1, 6));
 
         createKpiCard(sheet, 3, 1, "Ingresos por Ventas", totalSales, kpiValueGreenStyle);
@@ -186,34 +188,49 @@ public class ExcelReportHelper {
         }
     }
 
-    // ... (El resto de la clase con todos los métodos de ayuda que ya teníamos)
-
     private void createSalesRow(Row row, SalesOrder order, SalesOrderItem item) {
-        BigDecimal itemCost = (item.getProduct() != null && item.getProduct().getPurchasePrice() != null) ? item.getProduct().getPurchasePrice() : BigDecimal.ZERO;
-        BigDecimal totalItemCost = itemCost.multiply(item.getQuantity());
-        BigDecimal totalItemSale = item.getSubtotal();
+        String customerName = (order.getCustomer() != null) ? order.getCustomer().getName() : "Consumidor Final";
+        String productName = (item.getProduct() != null) ? item.getProduct().getName() : "Producto desconocido";
+
+        BigDecimal quantity = item.getQuantity() != null ? item.getQuantity() : BigDecimal.ZERO;
+        BigDecimal unitPrice = item.getUnitPriceAtSale() != null ? item.getUnitPriceAtSale() : BigDecimal.ZERO;
+        BigDecimal itemCost = (item.getProduct() != null && item.getProduct().getPurchasePrice() != null)
+                ? item.getProduct().getPurchasePrice()
+                : BigDecimal.ZERO;
+
+        BigDecimal totalItemCost = itemCost.multiply(quantity);
+        BigDecimal totalItemSale = unitPrice.multiply(quantity);
         BigDecimal itemProfit = totalItemSale.subtract(totalItemCost);
 
         createCell(row, 0, order.getOrderDate(), dateStyle);
         createCell(row, 1, order.getId(), defaultCellStyle);
-        createCell(row, 2, order.getCustomer() != null ? order.getCustomer().getName() : "Consumidor Final", defaultCellStyle);
-        createCell(row, 3, item.getProduct().getName(), defaultCellStyle);
-        createCell(row, 4, item.getQuantity().doubleValue(), defaultCellStyle);
-        createCell(row, 5, item.getUnitPriceAtSale(), currencyStyle);
+        createCell(row, 2, customerName, defaultCellStyle);
+        createCell(row, 3, productName, defaultCellStyle);
+        createCell(row, 4, quantity.doubleValue(), defaultCellStyle);
+        createCell(row, 5, unitPrice, currencyStyle);
         createCell(row, 6, totalItemSale, currencyStyle);
         createCell(row, 7, totalItemCost, currencyStyle);
         createCell(row, 8, itemProfit, itemProfit.compareTo(BigDecimal.ZERO) >= 0 ? currencyProfitStyle : currencyLossStyle);
     }
 
     private void createPurchasesRow(Row row, PurchaseOrder order, PurchaseOrderItem item) {
+        String supplierName = (order.getSupplier() != null) ? order.getSupplier().getName() : "Proveedor desconocido";
+        String productName = (item.getProduct() != null) ? item.getProduct().getName() : "Producto desconocido";
+
+        BigDecimal quantity = item.getQuantityOrdered() != null ? item.getQuantityOrdered() : BigDecimal.ZERO;
+        BigDecimal unitPrice = item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO;
+        BigDecimal totalCost = quantity.multiply(unitPrice);
+
         createCell(row, 0, order.getOrderDate(), dateStyle);
         createCell(row, 1, order.getId(), defaultCellStyle);
-        createCell(row, 2, order.getSupplier().getName(), defaultCellStyle);
-        createCell(row, 3, item.getProduct().getName(), defaultCellStyle);
-        createCell(row, 4, item.getQuantityOrdered().doubleValue(), defaultCellStyle);
-        createCell(row, 5, item.getUnitPrice(), currencyStyle);
-        createCell(row, 6, item.getQuantityOrdered().multiply(item.getUnitPrice()), currencyStyle);
+        createCell(row, 2, supplierName, defaultCellStyle);
+        createCell(row, 3, productName, defaultCellStyle);
+        createCell(row, 4, quantity.doubleValue(), defaultCellStyle);
+        createCell(row, 5, unitPrice, currencyStyle);
+        createCell(row, 6, totalCost, currencyStyle);
     }
+
+
 
     private CellStyle createBaseCellStyle() { return workbook.createCellStyle(); }
     private XSSFFont createFont(int height, boolean isBold, short color) {
@@ -238,15 +255,39 @@ public class ExcelReportHelper {
 
     private Cell createCell(Row row, int col, Object value, CellStyle style) {
         Cell cell = row.createCell(col);
-        if (value instanceof String) cell.setCellValue((String) value);
-        else if (value instanceof Number) cell.setCellValue(((Number) value).doubleValue());
-        else if (value instanceof LocalDate) cell.setCellValue((LocalDate) value);
+        if (style != null) {
+            cell.setCellStyle(style);
+        }
 
+        if (value == null) {
+            // Deja la celda en blanco si el valor es nulo
+            return cell;
+        }
 
-        if (style != null) cell.setCellStyle(style);
+        // --- LÓGICA MEJORADA ---
+        if (value instanceof String) {
+            cell.setCellValue((String) value);
+        } else if (value instanceof BigDecimal) {
+            // Maneja BigDecimal explícitamente para máxima precisión
+            cell.setCellValue(((BigDecimal) value).doubleValue());
+        } else if (value instanceof Integer) {
+            cell.setCellValue((Integer) value);
+        } else if (value instanceof Long) {
+            cell.setCellValue((Long) value);
+        } else if (value instanceof Double) {
+            cell.setCellValue((Double) value);
+        } else if (value instanceof LocalDate) {
+            cell.setCellValue((LocalDate) value);
+        }
+        // Si es otro tipo de Number, lo convertimos a double como última opción.
+        else if (value instanceof Number) {
+            cell.setCellValue(((Number) value).doubleValue());
+        }
+
         return cell;
     }
 
     private String[] getSalesHeaders() { return new String[]{"Fecha", "ID Orden", "Cliente", "Producto", "Cantidad", "Precio Venta", "Total Venta", "Total Costo", "Ganancia"}; }
     private String[] getPurchasesHeaders() { return new String[]{"Fecha", "ID Orden", "Proveedor", "Producto", "Cantidad", "Costo Unitario", "Total Costo"}; }
+
 }

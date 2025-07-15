@@ -50,14 +50,17 @@ jwt:
 # Logging
 logging:
   level:
-    root: DEBUG
-    org.springframework.web: DEBUG
-    org.springframework.security: INFO
+    # Nivel por defecto para toda la aplicación y librerías externas.
+    root: INFO
+
+    # Nivel específico para nuestro propio código, para ver flujos.
     com.one.core: DEBUG
-    org.hibernate.SQL: INFO
-    org.hibernate.type.descriptor.sql: WARN
-    com.one.core.config.multitenancy.JwtTenantIdentifierResolver: INFO
-    com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider: INFO
+
+    # Muestra las sentencias SQL que Hibernate genera.
+    org.hibernate.SQL: DEBUG
+
+    # MUESTRA LOS VALORES DE LOS PARÁMETROS - ¡ESTA ES LA LÍNEA MÁS IMPORTANTE!
+    org.hibernate.orm.jdbc.bind: TRACE
 
 # Spring Boot Actuator Configuration
 management:

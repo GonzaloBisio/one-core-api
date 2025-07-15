@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Data
@@ -19,7 +20,7 @@ public class PurchaseOrderDTO {
     private String notes;
     private Long createdByUserId;
     private String createdByUsername;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
+    private OffsetDateTime createdAt;
+    private OffsetDateTime updatedAt;
     private List<PurchaseOrderItemDTO> items;
 }

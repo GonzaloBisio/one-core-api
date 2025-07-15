@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.tenants (
                                 company_name VARCHAR(100) NOT NULL UNIQUE,
                                 schema_name VARCHAR(100) NOT NULL UNIQUE,
                                 industry_type VARCHAR(50) NOT NULL DEFAULT 'RETAIL',
-                                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS public.system_users (

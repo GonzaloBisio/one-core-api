@@ -8,6 +8,9 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "stock_movements")
@@ -34,7 +37,7 @@ public class StockMovement {
     private BigDecimal stockAfterMovement;
 
     @Column(name = "movement_date", nullable = false, columnDefinition = "TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP")
-    private LocalDateTime movementDate;
+    private OffsetDateTime movementDate;
 
     @Column(name = "reference_document_type", length = 50)
     private String referenceDocumentType; // Ej: PURCHASE_ORDER, SALES_ORDER
@@ -52,7 +55,7 @@ public class StockMovement {
     @PrePersist
     protected void onCreate() {
         if (movementDate == null) {
-            movementDate = LocalDateTime.now();
+            movementDate = OffsetDateTime.now(ZoneOffset.UTC);
         }
     }
 }

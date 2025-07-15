@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @NoArgsConstructor
@@ -18,7 +19,7 @@ public class StockMovementDTO {
     private MovementType movementType;
     private BigDecimal quantityChanged;
     private BigDecimal stockAfterMovement;
-    private LocalDateTime movementDate;
+    private OffsetDateTime movementDate;
     private String referenceDocumentType;
     private String referenceDocumentId;
     private Long userId;

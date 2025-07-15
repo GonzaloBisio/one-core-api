@@ -27,9 +27,13 @@ jwt:
 logging:
   level:
     root: INFO
-    org.springframework: INFO # Más detalle de Spring
-    com.one.core: INFO      # Máximo detalle de tu código
+
+    # Nivel específico para nuestro propio código, para ver flujos.
+    com.one.core: DEBUG
+
+    # Muestra las sentencias SQL que Hibernate genera.
     org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: INFO # Para ver parámetros de queries
+
+    # MUESTRA LOS VALORES DE LOS PARÁMETROS - ¡ESTA ES LA LÍNEA MÁS IMPORTANTE!
+    org.hibernate.orm.jdbc.bind: TRACE
     # com.one.core.config.multitenancy.JwtTenantIdentifierResolver: TRACE # Ya cubierto por com.one.core: TRACE
-    # com.one.core.config.multitenancy.SchemaMultiTenantConnectionProvider: TRACE # Ya cubierto por com.one.core: TRACE

@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -93,7 +94,7 @@ public class InventoryService {
         movement.setMovementType(movementType);
         movement.setQuantityChanged(quantityChanged);
         movement.setStockAfterMovement(newStock);
-        movement.setMovementDate(LocalDateTime.now());
+        movement.setMovementDate(OffsetDateTime.now());
         movement.setReferenceDocumentType(referenceDocumentType);
         movement.setReferenceDocumentId(referenceDocumentId);
         movement.setUser(performingUserProxy); // Usamos el objeto proxy
