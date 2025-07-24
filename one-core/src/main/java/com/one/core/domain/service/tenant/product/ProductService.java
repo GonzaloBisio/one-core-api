@@ -8,6 +8,7 @@ import com.one.core.application.exception.DuplicateFieldException;
 import com.one.core.application.exception.ResourceNotFoundException;
 import com.one.core.application.exception.ValidationException;
 import com.one.core.application.mapper.product.ProductMapper;
+import com.one.core.application.security.AuthenticationFacade;
 import com.one.core.config.multitenancy.TenantContext;
 import com.one.core.domain.model.enums.IndustryType;
 import com.one.core.domain.model.enums.ProductType;
@@ -21,8 +22,11 @@ import com.one.core.domain.repository.tenant.product.ProductPackagingRepository;
 import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
+import com.one.core.domain.service.tenant.inventory.InventoryService;
 import com.one.core.domain.service.tenant.product.criteria.ProductSpecification;
 import com.one.core.domain.service.tenant.util.ProductUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -40,6 +44,9 @@ import java.util.stream.Collectors;
 @Service
 public class ProductService {
 
+    private static final Logger logger = LoggerFactory.getLogger(ProductService.class);
+
+
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
@@ -47,6 +54,9 @@ public class ProductService {
     private final ProductMapper productMapper;
     private final ProductUtils productUtils;
     private final ProductPackagingRepository productPackagingRepository;
+    private final AuthenticationFacade authenticationFacade;
+    private final InventoryService inventoryService;
+
 
 
     @Autowired
@@ -56,7 +66,9 @@ public class ProductService {
                           ProductRecipeRepository productRecipeRepository,
                           ProductMapper productMapper,
                           ProductUtils productUtils,
-                          ProductPackagingRepository productPackagingRepository) {
+                          ProductPackagingRepository productPackagingRepository,
+                          AuthenticationFacade authenticationFacade,
+                          InventoryService inventoryService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
@@ -64,6 +76,8 @@ public class ProductService {
         this.productMapper = productMapper;
         this.productUtils = productUtils;
         this.productPackagingRepository = productPackagingRepository;
+        this.authenticationFacade = authenticationFacade;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -119,6 +133,15 @@ public class ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
+
+        try {
+            Long userId = authenticationFacade.getCurrentAuthenticatedSystemUserId().orElse(null);
+            inventoryService.recordInitialStockMovement(savedProduct, userId);
+        } catch (Exception e) {
+            logger.error("Failed to record initial stock movement for new product ID {}. Error: {}", savedProduct.getId(), e.getMessage());
+            throw e;
+        }
+
         return productMapper.toDTO(savedProduct);
     }
 

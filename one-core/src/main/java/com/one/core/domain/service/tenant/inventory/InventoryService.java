@@ -198,4 +198,42 @@ public class InventoryService {
                 .collect(Collectors.toList());
         return new PageImpl<>(movementDTOs, pageable, movementPage.getTotalElements());
     }
+
+    /**
+     * Registra únicamente el movimiento de stock inicial para un producto recién creado.
+     * NO modifica el stock del producto, asume que ya fue establecido durante la creación.
+     * @param product El producto ya guardado con su stock inicial.
+     * @param performingSystemUserId El ID del usuario que realiza la acción.
+     */
+    @Transactional(propagation = Propagation.MANDATORY) // Se une a la transacción de createProduct
+    public void recordInitialStockMovement(Product product, Long performingSystemUserId) {
+        validateProductIsStockable(product);
+
+        BigDecimal initialStock = product.getCurrentStock();
+
+        // Si no hay stock inicial, no hay nada que registrar.
+        if (initialStock == null || initialStock.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        SystemUser performingUserProxy = null;
+        if (performingSystemUserId != null) {
+            performingUserProxy = new SystemUser();
+            performingUserProxy.setId(performingSystemUserId);
+        }
+
+        StockMovement movement = new StockMovement();
+        movement.setProduct(product);
+        movement.setMovementType(MovementType.INITIAL_STOCK); // Usamos el tipo que definimos antes
+        movement.setQuantityChanged(initialStock); // La cantidad que cambió es el stock total
+        movement.setStockAfterMovement(initialStock); // El stock después del movimiento es el mismo
+        movement.setMovementDate(OffsetDateTime.now());
+        movement.setReferenceDocumentType("PRODUCT_CREATION");
+        movement.setReferenceDocumentId("ID:" + product.getId());
+        movement.setUser(performingUserProxy);
+        movement.setNotes("Carga de stock inicial por creación de producto.");
+
+        stockMovementRepository.save(movement);
+        logger.info("Initial stock movement recorded for product ID {} with quantity {}.", product.getId(), initialStock);
+    }
 }
