@@ -71,7 +71,8 @@ public class PurchaseOrderService {
 
         PurchaseOrder order = new PurchaseOrder();
         order.setOrderDate(LocalDate.now());
-        order.setStatus(PurchaseOrderStatus.DRAFT);
+        // CAMBIO: El estado ahora es FULLY_RECEIVED por defecto, saltando DRAFT.
+        order.setStatus(PurchaseOrderStatus.FULLY_RECEIVED);
         order.setExpectedDeliveryDate(requestDTO.getExpectedDeliveryDate());
         order.setNotes(requestDTO.getNotes());
 
@@ -85,13 +86,35 @@ public class PurchaseOrderService {
             Product product = productRepository.findById(itemDto.getProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Product", "id", itemDto.getProductId()));
             PurchaseOrderItem orderItem = purchaseOrderMapper.itemRequestDtoToEntity(itemDto, product);
+
+            // LÓGICA AÑADIDA: Se asume que todo lo ordenado se recibe inmediatamente.
+            orderItem.setQuantityReceived(orderItem.getQuantityOrdered());
+
             orderItem.setPurchaseOrder(order);
             items.add(orderItem);
         }
         order.setItems(items);
         order.recalculateTotals();
 
+        // Guardamos la orden primero para obtener su ID.
         PurchaseOrder savedOrder = purchaseOrderRepository.save(order);
+        logger.info("Purchase Order {} created with status FULLY_RECEIVED.", savedOrder.getId());
+
+        // LÓGICA AÑADIDA: Procesar el ingreso de stock para cada ítem de la orden recién creada.
+        String notesForMovement = "Stock received automatically upon creation of PO: " + savedOrder.getId();
+        for (PurchaseOrderItem item : savedOrder.getItems()) {
+            inventoryService.processIncomingStock(
+                    item.getProduct().getId(),
+                    item.getQuantityReceived(), // La cantidad que acabamos de establecer
+                    MovementType.PURCHASE_RECEIPT,
+                    "PURCHASE_ORDER",
+                    savedOrder.getId().toString(),
+                    currentUser.getId(),
+                    notesForMovement + " - Item: " + item.getProduct().getName()
+            );
+            logger.info("Stock updated for product ID {} with quantity {}.", item.getProduct().getId(), item.getQuantityReceived());
+        }
+
         return purchaseOrderMapper.toDTO(savedOrder);
     }
 

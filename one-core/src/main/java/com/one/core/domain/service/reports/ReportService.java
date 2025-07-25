@@ -1,7 +1,9 @@
 package com.one.core.domain.service.reports;
 
 import com.one.core.application.dto.tenant.reports.OperationalReportData;
+import com.one.core.application.dto.reports.OperationalReportJsonDTO;
 import com.one.core.application.dto.tenant.reports.PurchaseReportRow;
+import com.one.core.application.dto.reports.ReportFilterDTO;
 import com.one.core.application.dto.tenant.reports.SalesReportRow;
 import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.enums.purchases.PurchaseOrderStatus;
@@ -12,7 +14,12 @@ import com.one.core.domain.model.tenant.sales.SalesOrder;
 import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.purchases.PurchaseOrderRepository;
 import com.one.core.domain.repository.tenant.sales.SalesOrderRepository;
+import com.one.core.domain.service.reports.criteria.SalesOrderSpecification;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.time.temporal.TemporalAdjusters;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -47,8 +55,85 @@ public class ReportService {
         this.excelReportGenerator = new ExcelReportGenerator();
     }
 
+    /**
+     * Genera el reporte completo en formato Excel.
+     */
     @Transactional(readOnly = true)
     public ByteArrayInputStream generateOperationalSummaryReport(String reportType, LocalDate date) {
+        ReportDataBundle dataBundle = gatherReportData(reportType, date);
+
+        List<SalesReportRow> salesRows = mapSalesToReportRows(dataBundle.allSalesInPeriod());
+        List<PurchaseReportRow> purchaseRows = mapPurchasesToReportRows(dataBundle.allPurchasesInPeriod());
+
+        String generationDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
+
+        OperationalReportData reportData = new OperationalReportData(
+                dataBundle.reportTitle(),
+                generationDate,
+                dataBundle.totalSales(),
+                dataBundle.totalCostOfGoodsSold(),
+                dataBundle.grossProfit(),
+                dataBundle.totalPurchases(),
+                salesRows,
+                purchaseRows
+        );
+
+        try {
+            return excelReportGenerator.generate(reportData);
+        } catch (IOException e) {
+            throw new RuntimeException("Error al generar el reporte Excel.", e);
+        }
+    }
+
+    /**
+     * Obtiene los datos del reporte en formato JSON, con filtros y paginación.
+     */
+    @Transactional(readOnly = true)
+    public OperationalReportJsonDTO getOperationalSummaryJson(String reportType, LocalDate date, ReportFilterDTO filter, Pageable pageable) {
+        ReportDataBundle dataBundle = gatherReportData(reportType, date);
+
+        Page<SalesReportRow> salesPage = Page.empty(pageable);
+        Page<PurchaseReportRow> purchasesPage = Page.empty(pageable);
+
+        String transactionType = filter.getTransactionType();
+
+        if (!"PURCHASES".equalsIgnoreCase(transactionType)) {
+            Specification<SalesOrder> spec = SalesOrderSpecification.filterBy(filter)
+                    .and((root, query, cb) -> cb.between(root.get("orderDate"), dataBundle.startDate(), dataBundle.endDate()))
+                    .and((root, query, cb) -> cb.notEqual(root.get("status"), SalesOrderStatus.CANCELLED));
+
+            Page<SalesOrder> salesOrderPage = salesOrderRepository.findAll(spec, pageable);
+
+            // Mapeamos el contenido de la página de Órdenes a una lista de Filas de Reporte (una orden puede generar varias filas)
+            List<SalesReportRow> salesReportRows = mapSalesToReportRows(salesOrderPage.getContent());
+            salesPage = new PageImpl<>(salesReportRows, pageable, salesOrderPage.getTotalElements());
+        }
+
+        if (!"SALES".equalsIgnoreCase(transactionType)) {
+            Specification<PurchaseOrder> spec = (root, query, cb) -> cb.between(root.get("orderDate"), dataBundle.startDate(), dataBundle.endDate());
+            // Se podría añadir PurchaseOrderSpecification aquí si se necesitan más filtros
+
+            Page<PurchaseOrder> purchaseOrderPage = purchaseOrderRepository.findAll(spec, pageable);
+            List<PurchaseReportRow> purchaseReportRows = mapPurchasesToReportRows(purchaseOrderPage.getContent());
+            purchasesPage = new PageImpl<>(purchaseReportRows, pageable, purchaseOrderPage.getTotalElements());
+        }
+
+        return new OperationalReportJsonDTO(
+                dataBundle.reportTitle(),
+                dataBundle.totalSales(),
+                dataBundle.totalCostOfGoodsSold(),
+                dataBundle.grossProfit(),
+                dataBundle.totalPurchases(),
+                salesPage,
+                purchasesPage
+        );
+    }
+
+    /**
+     * Método privado para centralizar la obtención de datos y cálculo de KPIs globales.
+     * Es utilizado por ambos endpoints (Excel y JSON).
+     */
+    private ReportDataBundle gatherReportData(String reportType, LocalDate date) {
         LocalDate startDate;
         LocalDate endDate;
         String reportTitle;
@@ -61,13 +146,11 @@ public class ReportService {
                 endDate = date;
                 reportTitle = "Resumen Diario: " + date.format(dateFormatter);
                 break;
-
             case "WEEKLY":
                 startDate = date.with(DayOfWeek.MONDAY);
                 endDate = date.with(DayOfWeek.SUNDAY);
                 reportTitle = "Resumen Semanal: " + startDate.format(dateFormatter) + " al " + endDate.format(dateFormatter);
                 break;
-
             case "MONTHLY":
             default:
                 startDate = date.with(TemporalAdjusters.firstDayOfMonth());
@@ -77,35 +160,23 @@ public class ReportService {
                 break;
         }
 
-        List<SalesOrder> sales = salesOrderRepository.findByOrderDateBetweenAndStatusNot(startDate, endDate, SalesOrderStatus.CANCELLED);
-        List<PurchaseOrder> purchases = purchaseOrderRepository.findByOrderDateBetweenAndStatusNot(startDate, endDate, PurchaseOrderStatus.CANCELLED);
+        List<SalesOrder> allSalesInPeriod = salesOrderRepository.findByOrderDateBetweenAndStatusNot(startDate, endDate, SalesOrderStatus.CANCELLED);
+        List<PurchaseOrder> allPurchasesInPeriod = purchaseOrderRepository.findByOrderDateBetweenAndStatusNot(startDate, endDate, PurchaseOrderStatus.CANCELLED);
 
-        BigDecimal totalSales = sales.stream().map(SalesOrder::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalPurchases = purchases.stream().map(PurchaseOrder::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalCostOfGoodsSold = calculateCostOfGoodsSold(sales);
+        BigDecimal totalSales = allSalesInPeriod.stream().map(SalesOrder::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalPurchases = allPurchasesInPeriod.stream().map(PurchaseOrder::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalCostOfGoodsSold = calculateCostOfGoodsSold(allSalesInPeriod);
         BigDecimal grossProfit = totalSales.subtract(totalCostOfGoodsSold);
 
-        List<SalesReportRow> salesRows = mapSalesToReportRows(sales);
-        List<PurchaseReportRow> purchaseRows = mapPurchasesToReportRows(purchases);
-
-        // CORRECCIÓN FINAL: Usar LocalDateTime aquí para la fecha de generación.
-        String generationDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"));
-
-        OperationalReportData reportData = new OperationalReportData(
-                reportTitle,
-                generationDate,
-                totalSales, totalCostOfGoodsSold, grossProfit, totalPurchases,
-                salesRows, purchaseRows
-        );
-
-        try {
-            return excelReportGenerator.generate(reportData);
-        } catch (IOException e) {
-            throw new RuntimeException("Error al generar el reporte Excel.", e);
-        }
+        return new ReportDataBundle(reportTitle, startDate, endDate, allSalesInPeriod, allPurchasesInPeriod, totalSales, totalPurchases, totalCostOfGoodsSold, grossProfit);
     }
 
+    // --- MAPPERS Y CALCULADORAS (Sin cambios) ---
+
     private List<SalesReportRow> mapSalesToReportRows(List<SalesOrder> sales) {
+        if (sales == null || sales.isEmpty()) {
+            return Collections.emptyList();
+        }
         return sales.stream()
                 .flatMap(order -> order.getItems().stream().map(item -> {
                     BigDecimal quantity = item.getQuantity();
@@ -119,6 +190,9 @@ public class ReportService {
     }
 
     private List<PurchaseReportRow> mapPurchasesToReportRows(List<PurchaseOrder> purchases) {
+        if (purchases == null || purchases.isEmpty()) {
+            return Collections.emptyList();
+        }
         return purchases.stream()
                 .flatMap(order -> order.getItems().stream().map(item -> {
                     BigDecimal quantity = item.getQuantityOrdered();
@@ -147,4 +221,19 @@ public class ReportService {
         }
         return BigDecimal.ZERO;
     }
+
+    /**
+     * Record interno para agrupar los datos comunes calculados.
+     */
+    private record ReportDataBundle(
+            String reportTitle,
+            LocalDate startDate,
+            LocalDate endDate,
+            List<SalesOrder> allSalesInPeriod,
+            List<PurchaseOrder> allPurchasesInPeriod,
+            BigDecimal totalSales,
+            BigDecimal totalPurchases,
+            BigDecimal totalCostOfGoodsSold,
+            BigDecimal grossProfit
+    ) {}
 }
