@@ -16,6 +16,8 @@ import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.production.ProductionOrderRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -104,10 +106,9 @@ public class ProductionOrderService {
         return productionOrderMapper.toDTO(savedOrder);
     }
 
-    public List<ProductionOrderDTO> getAllProductionOrders() {
-        List<ProductionOrder> productionOrders = productionOrderRepository.findAll();
-        return productionOrders.stream()
-                .map(productionOrderMapper::toDTO)
-                .toList();
+    @Transactional(readOnly = true)
+    public Page<ProductionOrderDTO> getAllProductionOrders(Pageable pageable) {
+        Page<ProductionOrder> orderPage = productionOrderRepository.findAll(pageable);
+        return orderPage.map(productionOrderMapper::toDTO);
     }
 }

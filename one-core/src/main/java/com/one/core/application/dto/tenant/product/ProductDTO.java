@@ -11,6 +11,7 @@ public class ProductDTO {
     private String name;
     private String description;
     private ProductType productType;
+    private boolean hasPackaging; // Indica si el producto tiene empaques
     private Long categoryId; // O un CategoryDTO anidado
     private String categoryName;
     private Long defaultSupplierId; // O un SupplierDTO anidado

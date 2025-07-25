@@ -100,7 +100,7 @@ public class ProductService {
             if (StringUtils.hasText(product.getSku()) && productRepository.existsBySku(product.getSku().trim())) {
                 throw new DuplicateFieldException("Product SKU", product.getSku().trim());
             }
-        } else if (product.getProductType() == ProductType.PHYSICAL_GOOD) {
+        } else if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.PACKAGING) {
             if (StringUtils.hasText(product.getSku())) {
                 if(productRepository.existsBySku(product.getSku().trim())) {
                     throw new DuplicateFieldException("Product SKU", product.getSku().trim());
@@ -113,9 +113,6 @@ public class ProductService {
             }
         }
 
-        // --- LÓGICA MODIFICADA ---
-        // Ahora, solo los productos que NO son inventariables (servicios, etc.) tendrán su stock forzado a cero.
-        // Los COMPOUND ya no entran en esta regla.
         if (product.getProductType() == ProductType.SERVICE || product.getProductType() == ProductType.SUBSCRIPTION || product.getProductType() == ProductType.DIGITAL) {
             product.setCurrentStock(BigDecimal.ZERO);
             product.setMinimumStockLevel(BigDecimal.ZERO);
@@ -158,7 +155,15 @@ public class ProductService {
 
         productMapper.updateEntityFromDTO(productDTO, product);
 
-        // --- LÓGICA MODIFICADA ---
+        if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.PACKAGING) {
+            if (!StringUtils.hasText(product.getSku())) {
+                product.setSku(productUtils.generateSku());
+            }
+            if (!StringUtils.hasText(product.getBarcode())) {
+                product.setBarcode(productUtils.generateBarcode());
+            }
+        }
+
         if (product.getProductType() == ProductType.SERVICE || product.getProductType() == ProductType.SUBSCRIPTION || product.getProductType() == ProductType.DIGITAL) {
             product.setCurrentStock(BigDecimal.ZERO);
             product.setMinimumStockLevel(BigDecimal.ZERO);
@@ -285,14 +290,10 @@ public class ProductService {
             Product packagingProduct = productRepository.findById(itemDTO.getPackagingProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Packaging Product", "id", itemDTO.getPackagingProductId()));
 
-            if (packagingProduct.getProductType() != ProductType.PHYSICAL_GOOD) {
-                throw new ValidationException("Packaging items must be products of type PHYSICAL_GOOD.");
+            if (packagingProduct.getProductType() != ProductType.PACKAGING) {
+                throw new ValidationException("Packaging items must be products of type PACKAGING.");
             }
-            if (packagingProduct.getCategory() == null || !"Empaques".equalsIgnoreCase(packagingProduct.getCategory().getName())) {
-                throw new ValidationException(
-                        "El producto '" + packagingProduct.getName() + "' no puede ser usado como empaque porque no pertenece a la categoría 'Empaques'."
-                );
-            }
+
 
             ProductPackaging packagingItem = new ProductPackaging();
             packagingItem.setMainProduct(mainProduct);

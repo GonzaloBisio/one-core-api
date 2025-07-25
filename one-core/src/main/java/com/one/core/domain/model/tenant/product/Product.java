@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import org.hibernate.annotations.Formula;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -69,6 +70,9 @@ public class Product {
 
     @Column(name = "image_url", length = 255)
     private String imageUrl;
+
+    @Formula("(SELECT CASE WHEN COUNT(pp.id) > 0 THEN TRUE ELSE FALSE END FROM product_packaging pp WHERE pp.main_product_id = id)")
+    private boolean hasPackaging;
 
     @CreatedBy
     @ManyToOne(fetch = FetchType.LAZY)

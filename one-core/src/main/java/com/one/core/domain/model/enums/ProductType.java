@@ -5,5 +5,6 @@ public enum ProductType {
     SERVICE,       // Un servicio que no usa stock
     SUBSCRIPTION,  // Un abono o membresía recurrente
     DIGITAL,        // Un producto digital
-    COMPOUND        // Un producto compuesto por otros productos
+    COMPOUND,        // Un producto compuesto por otros productos
+    PACKAGING // Un producto de empaque o embalaje
 }

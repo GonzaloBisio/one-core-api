@@ -2,10 +2,15 @@ package com.one.core.application.controller.tenant.production;
 
 import com.one.core.application.dto.tenant.production.ProductionOrderDTO;
 import com.one.core.application.dto.tenant.production.ProductionOrderRequestDTO;
+import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.application.security.UserPrincipal;
 import com.one.core.domain.service.tenant.production.ProductionOrderService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,9 +42,12 @@ public class ProductionOrderController {
 
 
     @GetMapping
-    public ResponseEntity<List<ProductionOrderDTO>> getAllProductionOrders() {
-        List<ProductionOrderDTO> productionOrders = productionOrderService.getAllProductionOrders();
-        return new ResponseEntity<>(productionOrders, HttpStatus.OK);
+    public ResponseEntity<PageableResponse<ProductionOrderDTO>> getAllProductionOrders(
+            // ProductionOrderFilterDTO filterDTO, // Podrías crear un DTO para filtros
+            @PageableDefault(size = 20, sort = "productionDate", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<ProductionOrderDTO> orderPage = productionOrderService.getAllProductionOrders(pageable);
+        return ResponseEntity.ok(new PageableResponse<>(orderPage));
     }
     // Aquí podrías añadir endpoints GET para listar/ver órdenes de producción
 }

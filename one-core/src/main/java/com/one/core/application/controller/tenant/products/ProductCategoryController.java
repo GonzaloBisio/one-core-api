@@ -30,7 +30,7 @@ public class ProductCategoryController {
     @GetMapping
     public ResponseEntity<PageableResponse<ProductCategoryDTO>> getAllCategories(
             ProductCategoryFilterDTO filterDTO,
-            @PageableDefault(size = 20, sort = "name", direction = Sort.Direction.ASC) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         Page<ProductCategoryDTO> categoryPage = categoryService.getAllCategories(filterDTO, pageable);
         return ResponseEntity.ok(new PageableResponse<>(categoryPage));
     }

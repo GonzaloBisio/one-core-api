@@ -10,6 +10,7 @@ import java.math.BigDecimal;
 @Component
 public class ProductMapper {
 
+
     /**
      * Convierte una entidad Product a ProductDTO.
      */
@@ -23,6 +24,7 @@ public class ProductMapper {
         dto.setName(product.getName());
         dto.setDescription(product.getDescription());
         dto.setProductType(product.getProductType());
+        dto.setHasPackaging(product.isHasPackaging());
 
         if (product.getCategory() != null) {
             dto.setCategoryId(product.getCategory().getId());
