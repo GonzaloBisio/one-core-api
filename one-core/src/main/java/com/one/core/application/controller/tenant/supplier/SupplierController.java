@@ -30,7 +30,7 @@ public class SupplierController {
     @GetMapping
     public ResponseEntity<PageableResponse<SupplierDTO>> getAllSuppliers(
             SupplierFilterDTO filterDTO,
-            @PageableDefault(size = 10, sort = "name", direction = Sort.Direction.ASC)
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
         Page<SupplierDTO> supplierPage = supplierService.getAllSuppliers(filterDTO, pageable);
