@@ -174,7 +174,8 @@ public class InventoryService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
 
-        if (product.getProductType() != ProductType.PHYSICAL_GOOD) {
+        ProductType type = product.getProductType();
+        if (type == ProductType.SERVICE || type == ProductType.SUBSCRIPTION || type == ProductType.DIGITAL) {
             return true;
         }
 
@@ -235,5 +236,43 @@ public class InventoryService {
 
         stockMovementRepository.save(movement);
         logger.info("Initial stock movement recorded for product ID {} with quantity {}.", product.getId(), initialStock);
+    }
+
+    @Transactional
+    public void transferToFrozenStock(Long productId, BigDecimal quantityToFreeze, UserPrincipal currentUser) {
+        if (quantityToFreeze == null || quantityToFreeze.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValidationException("Quantity to freeze must be positive.");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+        if (product.getCurrentStock().compareTo(quantityToFreeze) < 0) {
+            throw new ValidationException("Insufficient available stock to freeze. Available: " + product.getCurrentStock() + ", Requested: " + quantityToFreeze);
+        }
+
+        // 2. Realizar la transferencia
+        product.setCurrentStock(product.getCurrentStock().subtract(quantityToFreeze));
+        product.setFrozenStock(product.getFrozenStock().add(quantityToFreeze));
+
+        productRepository.save(product);
+    }
+
+    @Transactional
+    public void thawStock(Long productId, BigDecimal quantityToThaw, UserPrincipal currentUser) {
+        if (quantityToThaw == null || quantityToThaw.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValidationException("Cantidad a descongelar debe ser positiva.");
+        }
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", productId));
+
+        if (product.getFrozenStock().compareTo(quantityToThaw) < 0) {
+            throw new ValidationException("Stock insuficiente para descongelar. Freezado: " + product.getFrozenStock() + ", Solicitado: " + quantityToThaw);
+        }
+
+        product.setFrozenStock(product.getFrozenStock().subtract(quantityToThaw));
+        product.setCurrentStock(product.getCurrentStock().add(quantityToThaw));
+        productRepository.save(product);
     }
 }

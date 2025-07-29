@@ -3,6 +3,7 @@ package com.one.core.application.controller.tenant.inventory;
 import com.one.core.application.dto.tenant.inventory.StockAdjustmentRequestDTO;
 import com.one.core.application.dto.tenant.inventory.StockMovementDTO;
 import com.one.core.application.dto.tenant.inventory.StockMovementFilterDTO;
+import com.one.core.application.dto.tenant.product.StockTransferRequestDTO;
 import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.application.security.UserPrincipal;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
@@ -64,5 +65,25 @@ public class InventoryController {
             @RequestParam BigDecimal quantityNeeded) {
         boolean available = inventoryService.isStockAvailable(productId, quantityNeeded);
         return ResponseEntity.ok(available);
+    }
+
+    @PostMapping("/stock/freeze")
+    public ResponseEntity<Void> freezeStock(
+            @Valid @RequestBody StockTransferRequestDTO request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+
+        inventoryService.transferToFrozenStock(request.getProductId(), request.getQuantity(), currentUser);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/stock/thaw")
+    public ResponseEntity<Void> thawStock(
+            @Valid @RequestBody StockTransferRequestDTO request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+
+        inventoryService.thawStock(request.getProductId(), request.getQuantity(), currentUser);
+
+        return ResponseEntity.ok().build();
     }
 }

@@ -59,6 +59,9 @@ public class Product {
     @Column(name = "current_stock", precision = 12, scale = 3, columnDefinition = "NUMERIC(12,3) DEFAULT 0.000")
     private BigDecimal currentStock = BigDecimal.ZERO;
 
+    @Column(name = "frozen_stock", precision = 12, scale = 3, columnDefinition = "NUMERIC(12,3) DEFAULT 0.000")
+    private BigDecimal frozenStock = BigDecimal.ZERO;
+
     @Column(name = "minimum_stock_level", precision = 12, scale = 3, columnDefinition = "NUMERIC(12,3) DEFAULT 0.000")
     private BigDecimal minimumStockLevel = BigDecimal.ZERO;
 

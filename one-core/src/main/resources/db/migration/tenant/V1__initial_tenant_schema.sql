@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS products (
     category_id BIGINT, default_supplier_id BIGINT, purchase_price NUMERIC(12, 2) DEFAULT 0.00,
     sale_price NUMERIC(12, 2) DEFAULT 0.00, unit_of_measure VARCHAR(20) DEFAULT 'UNIT',
     current_stock NUMERIC(12, 3) DEFAULT 0.000, minimum_stock_level NUMERIC(12, 3) DEFAULT 0.000,
+    frozenStock NUMERIC(12, 3) DEFAULT 0.000,
     is_active BOOLEAN DEFAULT TRUE, barcode VARCHAR(100), image_url VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_by_user_id BIGINT, updated_by_user_id BIGINT,
