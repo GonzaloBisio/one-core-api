@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS products (
     category_id BIGINT, default_supplier_id BIGINT, purchase_price NUMERIC(12, 2) DEFAULT 0.00,
     sale_price NUMERIC(12, 2) DEFAULT 0.00, unit_of_measure VARCHAR(20) DEFAULT 'UNIT',
     current_stock NUMERIC(12, 3) DEFAULT 0.000, minimum_stock_level NUMERIC(12, 3) DEFAULT 0.000,
-    frozenStock NUMERIC(12, 3) DEFAULT 0.000,
+    frozen_stock NUMERIC(12, 3) DEFAULT 0.000,
     is_active BOOLEAN DEFAULT TRUE, barcode VARCHAR(100), image_url VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_by_user_id BIGINT, updated_by_user_id BIGINT,
@@ -131,6 +131,32 @@ CREATE TABLE IF NOT EXISTS production_orders (
 
     CONSTRAINT fk_po_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT,
     CONSTRAINT fk_po_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
+    );
+
+CREATE TABLE IF NOT EXISTS event_orders (
+                                            id BIGSERIAL PRIMARY KEY,
+                                            customer_id BIGINT,
+                                            event_date DATE NOT NULL,
+                                            status VARCHAR(30) NOT NULL,
+    notes TEXT,
+    total_amount NUMERIC(14, 2) DEFAULT 0.00,
+    delivery_address TEXT,
+    created_by_user_id BIGINT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_eo_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
+    CONSTRAINT fk_eo_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
+    );
+
+CREATE TABLE IF NOT EXISTS event_order_items (
+                                                 id BIGSERIAL PRIMARY KEY,
+                                                 event_order_id BIGINT NOT NULL,
+                                                 product_id BIGINT NOT NULL,
+                                                 quantity NUMERIC(10, 3) NOT NULL,
+    unit_price NUMERIC(12, 2) NOT NULL,
+    subtotal NUMERIC(14, 2) NOT NULL,
+    CONSTRAINT fk_eoi_event_order FOREIGN KEY (event_order_id) REFERENCES event_orders (id) ON DELETE CASCADE,
+    CONSTRAINT fk_eoi_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
     );
 
 CREATE INDEX IF NOT EXISTS idx_pp_main_product_id ON product_packaging(main_product_id);

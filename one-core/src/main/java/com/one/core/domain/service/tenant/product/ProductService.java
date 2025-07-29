@@ -129,6 +129,7 @@ public class ProductService {
             product.setDefaultSupplier(supplier);
         }
 
+        product.setActive(true);
         Product savedProduct = productRepository.save(product);
 
         try {
@@ -213,11 +214,13 @@ public class ProductService {
     }
 
     @Transactional
-    public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) throw new ResourceNotFoundException("Product", "id", id);
-        List<ProductRecipe> recipe = productRecipeRepository.findByMainProductId(id);
-        productRecipeRepository.deleteAll(recipe);
-        productRepository.deleteById(id);
+    public void deactivateProduct(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+
+        product.setActive(false);
+
+        productRepository.save(product);
     }
 
     @Transactional
