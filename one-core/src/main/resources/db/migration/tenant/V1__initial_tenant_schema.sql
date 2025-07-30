@@ -159,6 +159,30 @@ CREATE TABLE IF NOT EXISTS event_order_items (
     CONSTRAINT fk_eoi_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
     );
 
+CREATE TABLE IF NOT EXISTS fixed_expenses (
+                                              id BIGSERIAL PRIMARY KEY,
+                                              name VARCHAR(150) NOT NULL UNIQUE, -- ej: "Alquiler del Local", "Salario Juan Perez"
+    category VARCHAR(50) NOT NULL,     -- ej: "ALQUILER", "SALARIOS"
+    current_amount NUMERIC(12, 2) NOT NULL,
+    notes TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    );
+
+-- TABLA PARA REGISTRAR LOS PAGOS DE GASTOS (TANTO FIJOS COMO VARIABLES)
+CREATE TABLE IF NOT EXISTS expense_logs (
+                                            id BIGSERIAL PRIMARY KEY,
+                                            description VARCHAR(255) NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL,
+    expense_date DATE NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    fixed_expense_id BIGINT, -- Clave foránea opcional a la plantilla del gasto fijo
+    created_by_user_id BIGINT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_exp_log_fixed_expense FOREIGN KEY (fixed_expense_id) REFERENCES fixed_expenses (id) ON DELETE SET NULL,
+    CONSTRAINT fk_exp_log_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
+    );
 CREATE INDEX IF NOT EXISTS idx_pp_main_product_id ON product_packaging(main_product_id);
 
 CREATE INDEX IF NOT EXISTS idx_pr_main_product_id ON product_recipes(main_product_id);
