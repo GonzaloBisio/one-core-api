@@ -240,8 +240,9 @@ public class ProductService {
         for (ProductRecipeDTO itemDTO : recipeItemsDTO) {
             Product ingredientProduct = productRepository.findById(itemDTO.getIngredientProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", itemDTO.getIngredientProductId()));
-            if (ingredientProduct.getProductType() != ProductType.PHYSICAL_GOOD) {
-                throw new ValidationException("Ingredient '" + ingredientProduct.getName() + "' must be a PHYSICAL_GOOD.");
+            ProductType type = ingredientProduct.getProductType();
+            if (type != ProductType.PHYSICAL_GOOD && type != ProductType.COMPOUND) {
+                throw new ValidationException("Ingredient '" + ingredientProduct.getName() + "' must be a stockable item (PHYSICAL_GOOD or COMPOUND).");
             }
 
             ProductRecipe recipeItem = new ProductRecipe();

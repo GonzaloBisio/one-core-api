@@ -1,4 +1,3 @@
-// src/main/java/com/one/core/domain/service/admin/TenantAdminService.java
 package com.one.core.domain.service.admin;
 
 import com.one.core.application.dto.admin.TenantCreationRequestDTO;
@@ -13,6 +12,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 public class TenantAdminService {
@@ -36,13 +37,9 @@ public class TenantAdminService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /**
-     * Paso 1: Crea los metadatos del tenant y su usuario administrador.
-     * Esta operación es transaccional.
-     */
     @Transactional
     public Tenant createTenantMetadata(TenantCreationRequestDTO requestDTO) {
-        // --- Validaciones Previas ---
+        // --- Lógica existente sin cambios ---
         String schemaName = "tenant_" + requestDTO.getSchemaIdentifier();
         if (tenantRepository.existsBySchemaName(schemaName)) {
             throw new DuplicateFieldException("Schema Name", schemaName);
@@ -53,15 +50,17 @@ public class TenantAdminService {
         if (tenantRepository.existsByCompanyName(requestDTO.getCompanyName())) {
             throw new DuplicateFieldException("Company Name", requestDTO.getCompanyName());
         }
+        // --- VALIDACIÓN AÑADIDA ---
+        if (systemUserRepository.existsByEmail(requestDTO.getAdminEmail())) {
+            throw new DuplicateFieldException("Admin Email", requestDTO.getAdminEmail());
+        }
 
-        // --- Crear el Registro del Tenant ---
         Tenant newTenant = new Tenant();
         newTenant.setCompanyName(requestDTO.getCompanyName());
         newTenant.setSchemaName(schemaName);
         newTenant.setIndustryType(requestDTO.getIndustryType());
         Tenant savedTenant = tenantRepository.save(newTenant);
 
-        // --- Crear el SystemUser Administrador para el Tenant ---
         SystemUser tenantAdmin = new SystemUser();
         tenantAdmin.setUsername(requestDTO.getAdminUsername());
         tenantAdmin.setPassword(passwordEncoder.encode(requestDTO.getAdminPassword()));
@@ -76,20 +75,30 @@ public class TenantAdminService {
         return savedTenant;
     }
 
-    /**
-     * Paso 2: Provisiona la infraestructura del tenant (schema y tablas).
-     * Esta operación se ejecuta fuera de la transacción principal para evitar bloqueos.
-     */
-    // La ausencia de @Transactional significa que cada operación (CREATE SCHEMA, flyway.migrate)
-    // se ejecutará en su propia transacción corta (o será auto-committed), lo cual es correcto para DDL.
-    public void provisionTenantInfrastructure(String schemaName) {
+    // --- MÉTODO MODIFICADO ---
+    public void provisionTenantInfrastructure(Tenant tenant) {
+        String schemaName = tenant.getSchemaName();
         if (schemaName == null || schemaName.trim().isEmpty()) {
             throw new IllegalArgumentException("Schema name for provisioning cannot be null or empty.");
         }
-        // --- Crear el Schema en la Base de Datos ---
+
         jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS \"" + schemaName + "\"");
 
-        // --- Ejecutar Migraciones de Flyway para el Nuevo Schema ---
-        flywayTenantMigrationService.migrateTenantSchema(schemaName);
+        // Lógica para decidir qué scripts ejecutar
+        List<String> migrationLocations = new ArrayList<>();
+        migrationLocations.add("classpath:db/migration/tenant/common"); // Siempre las tablas comunes
+
+        switch (tenant.getIndustryType()) {
+            case FOOD_AND_BEVERAGE:
+                migrationLocations.add("classpath:db/migration/tenant/food_and_beverage");
+                break;
+            case DISTRIBUTION:
+                migrationLocations.add("classpath:db/migration/tenant/distribution");
+                break;
+            // Añadir más casos aquí
+        }
+
+        // Ejecutar Flyway con las carpetas seleccionadas
+        flywayTenantMigrationService.migrateTenantSchema(schemaName, migrationLocations.toArray(new String[0]));
     }
 }

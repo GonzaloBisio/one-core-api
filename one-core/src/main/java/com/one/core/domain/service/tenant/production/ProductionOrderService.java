@@ -22,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ProductionOrderService {
@@ -56,33 +58,38 @@ public class ProductionOrderService {
             throw new ValidationException("Production orders can only be created for products of type COMPOUND.");
         }
 
-        // 2. Obtener la receta y validar que hay stock de insumos
-        List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(productToProduce.getId());
-        if (recipeItems.isEmpty()) {
-            throw new ValidationException("Product " + productToProduce.getName() + " cannot be produced because it has no recipe defined.");
+        // 2. Calcular la lista APLANADA de insumos básicos usando la recursividad
+        Map<Product, BigDecimal> requiredRawIngredients = new HashMap<>();
+        calculateRawIngredients(productToProduce, requestDTO.getQuantityProduced(), requiredRawIngredients);
+
+        if (requiredRawIngredients.isEmpty()) {
+            throw new ValidationException("Product '" + productToProduce.getName() + "' cannot be produced because its recipe is empty or leads to no raw ingredients.");
         }
 
-        for (ProductRecipe recipeItem : recipeItems) {
-            BigDecimal requiredQuantity = recipeItem.getQuantityRequired().multiply(requestDTO.getQuantityProduced());
-            if (!inventoryService.isStockAvailable(recipeItem.getIngredientProduct().getId(), requiredQuantity)) {
-                throw new ValidationException("Insufficient stock for ingredient: " + recipeItem.getIngredientProduct().getName());
+        // 3. Validar el stock de los insumos básicos calculados
+        for (Map.Entry<Product, BigDecimal> entry : requiredRawIngredients.entrySet()) {
+            Product ingredient = entry.getKey();
+            BigDecimal requiredQuantity = entry.getValue();
+            if (!inventoryService.isStockAvailable(ingredient.getId(), requiredQuantity)) {
+                throw new ValidationException("Insufficient stock for raw ingredient: " + ingredient.getName());
             }
         }
 
-        // 3. Si hay stock, crear la orden de producción
+        // 4. Si hay stock, crear la orden de producción
         ProductionOrder newOrder = new ProductionOrder();
         newOrder.setProduct(productToProduce);
         newOrder.setQuantityProduced(requestDTO.getQuantityProduced());
         newOrder.setNotes(requestDTO.getNotes());
-
+        // Aquí podrías setear el 'createdByUser' si lo tienes en tu entidad ProductionOrder
         ProductionOrder savedOrder = productionOrderRepository.save(newOrder);
 
-        // 4. Procesar los movimientos de stock
-        // a) Descontar insumos
-        for (ProductRecipe recipeItem : recipeItems) {
-            BigDecimal quantityToConsume = recipeItem.getQuantityRequired().multiply(savedOrder.getQuantityProduced());
+        // 5. Procesar los movimientos de stock
+        // a) Descontar insumos básicos
+        for (Map.Entry<Product, BigDecimal> entry : requiredRawIngredients.entrySet()) {
+            Product ingredient = entry.getKey();
+            BigDecimal quantityToConsume = entry.getValue();
             inventoryService.processOutgoingStock(
-                    recipeItem.getIngredientProduct().getId(),
+                    ingredient.getId(),
                     quantityToConsume,
                     MovementType.COMPONENT_CONSUMPTION,
                     "PRODUCTION_ORDER",
@@ -104,6 +111,32 @@ public class ProductionOrderService {
         );
 
         return productionOrderMapper.toDTO(savedOrder);
+    }
+
+    /**
+     * Método recursivo que "desarma" un producto compuesto hasta llegar a sus insumos básicos (PHYSICAL_GOOD).
+     * @param product El producto a procesar (puede ser COMPOUND o PHYSICAL_GOOD).
+     * @param quantityNeeded La cantidad necesaria de este producto.
+     * @param rawIngredientsMap El mapa que acumula el resultado final de insumos básicos.
+     */
+    private void calculateRawIngredients(Product product, BigDecimal quantityNeeded, Map<Product, BigDecimal> rawIngredientsMap) {
+        // Caso base: Si el producto es un insumo físico, lo añadimos al mapa y terminamos.
+        if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.PACKAGING) {
+            rawIngredientsMap.merge(product, quantityNeeded, BigDecimal::add);
+            return;
+        }
+
+        // Paso recursivo: Si es un producto compuesto, obtenemos su receta y procesamos cada ingrediente.
+        if (product.getProductType() == ProductType.COMPOUND) {
+            List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(product.getId());
+            for (ProductRecipe recipeItem : recipeItems) {
+                Product ingredient = recipeItem.getIngredientProduct();
+                BigDecimal subQuantityNeeded = recipeItem.getQuantityRequired().multiply(quantityNeeded);
+
+                // Llamada recursiva para el ingrediente, que a su vez puede ser otra sub-receta.
+                calculateRawIngredients(ingredient, subQuantityNeeded, rawIngredientsMap);
+            }
+        }
     }
 
     @Transactional(readOnly = true)

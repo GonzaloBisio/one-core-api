@@ -1,6 +1,5 @@
 -- =================================================================
--- SCRIPT DE MIGRACIÓN GENÉRICO PARA NUEVOS TENANTS (V1)
--- Ubicación: src/main/resources/db/migration/tenant/V1__initial_tenant_schema.sql
+-- TABLAS COMUNES PARA TODOS LOS TENANTS
 -- =================================================================
 
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -21,8 +20,9 @@ CREATE TABLE IF NOT EXISTS products (
     description TEXT,
     category_id BIGINT, default_supplier_id BIGINT, purchase_price NUMERIC(12, 2) DEFAULT 0.00,
     sale_price NUMERIC(12, 2) DEFAULT 0.00, unit_of_measure VARCHAR(20) DEFAULT 'UNIT',
-    current_stock NUMERIC(12, 3) DEFAULT 0.000, minimum_stock_level NUMERIC(12, 3) DEFAULT 0.000,
+    current_stock NUMERIC(12, 3) DEFAULT 0.000,
     frozen_stock NUMERIC(12, 3) DEFAULT 0.000,
+    minimum_stock_level NUMERIC(12, 3) DEFAULT 0.000,
     is_active BOOLEAN DEFAULT TRUE, barcode VARCHAR(100), image_url VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_by_user_id BIGINT, updated_by_user_id BIGINT,
@@ -84,109 +84,18 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     CONSTRAINT fk_sm_user FOREIGN KEY (user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
     );
 
-CREATE TABLE IF NOT EXISTS product_recipes (
-                                               id BIGSERIAL PRIMARY KEY,
-    -- El producto final, 'padre' (ej: la Torta Marquise). Debe ser de tipo COMPOUND.
-                                               main_product_id BIGINT NOT NULL,
-    -- El insumo o ingrediente 'hijo' (ej: Chocolate). Debe ser de tipo PHYSICAL_GOOD.
-                                               ingredient_product_id BIGINT NOT NULL,
-    -- La cantidad de insumo necesaria para hacer UNA unidad del producto principal.
-                                               quantity_required NUMERIC(10, 3) NOT NULL,
-
-    CONSTRAINT fk_recipe_main_product FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
-    CONSTRAINT fk_recipe_ingredient_product FOREIGN KEY (ingredient_product_id) REFERENCES products (id) ON DELETE RESTRICT,
-    -- Nos aseguramos de que no se pueda añadir el mismo ingrediente dos veces a la misma receta.
-    UNIQUE (main_product_id, ingredient_product_id)
-    );
-
-CREATE TABLE IF NOT EXISTS product_packaging (
-                                                 id BIGSERIAL PRIMARY KEY,
-    -- El producto principal que requiere empaque (ej: Torta)
-                                                 main_product_id BIGINT NOT NULL,
-    -- El producto que actúa como empaque (ej: Caja de Torta). Debe ser de tipo PHYSICAL_GOOD.
-                                                 packaging_product_id BIGINT NOT NULL,
-    -- La cantidad de empaque necesaria por cada unidad del producto principal.
-                                                 quantity NUMERIC(10, 3) NOT NULL DEFAULT 1,
-
-    CONSTRAINT fk_packaging_main_product FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
-    CONSTRAINT fk_packaging_item_product FOREIGN KEY (packaging_product_id) REFERENCES products (id) ON DELETE RESTRICT,
-    -- Evita que se añada el mismo empaque dos veces al mismo producto.
-    UNIQUE (main_product_id, packaging_product_id)
-    );
-
-CREATE TABLE IF NOT EXISTS production_orders (
-                                                 id BIGSERIAL PRIMARY KEY,
-    -- El producto que se fabricó (debe ser de tipo COMPOUND)
-                                                 product_id BIGINT NOT NULL,
-    -- La cantidad que se fabricó en esta tanda
-                                                 quantity_produced NUMERIC(12, 3) NOT NULL,
-    -- La fecha en que se realizó la producción
-    production_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    -- Notas adicionales sobre la producción (ej: "Lote para evento X")
-    notes TEXT,
-    -- El usuario que registró la producción
-    created_by_user_id BIGINT,
-    -- Timestamp de creación
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT fk_po_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT,
-    CONSTRAINT fk_po_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
-    );
-
-CREATE TABLE IF NOT EXISTS event_orders (
-                                            id BIGSERIAL PRIMARY KEY,
-                                            customer_id BIGINT,
-                                            event_date DATE NOT NULL,
-                                            status VARCHAR(30) NOT NULL,
-    notes TEXT,
-    total_amount NUMERIC(14, 2) DEFAULT 0.00,
-    delivery_address TEXT,
-    created_by_user_id BIGINT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_eo_customer FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE SET NULL,
-    CONSTRAINT fk_eo_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
-    );
-
-CREATE TABLE IF NOT EXISTS event_order_items (
-                                                 id BIGSERIAL PRIMARY KEY,
-                                                 event_order_id BIGINT NOT NULL,
-                                                 product_id BIGINT NOT NULL,
-                                                 quantity NUMERIC(10, 3) NOT NULL,
-    unit_price NUMERIC(12, 2) NOT NULL,
-    subtotal NUMERIC(14, 2) NOT NULL,
-    CONSTRAINT fk_eoi_event_order FOREIGN KEY (event_order_id) REFERENCES event_orders (id) ON DELETE CASCADE,
-    CONSTRAINT fk_eoi_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
-    );
-
 CREATE TABLE IF NOT EXISTS fixed_expenses (
-                                              id BIGSERIAL PRIMARY KEY,
-                                              name VARCHAR(150) NOT NULL UNIQUE, -- ej: "Alquiler del Local", "Salario Juan Perez"
-    category VARCHAR(50) NOT NULL,     -- ej: "ALQUILER", "SALARIOS"
-    current_amount NUMERIC(12, 2) NOT NULL,
-    notes TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+                                              id BIGSERIAL PRIMARY KEY, name VARCHAR(150) NOT NULL UNIQUE,
+    category VARCHAR(50) NOT NULL, current_amount NUMERIC(12, 2) NOT NULL,
+    notes TEXT, is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
     );
 
--- TABLA PARA REGISTRAR LOS PAGOS DE GASTOS (TANTO FIJOS COMO VARIABLES)
 CREATE TABLE IF NOT EXISTS expense_logs (
-                                            id BIGSERIAL PRIMARY KEY,
-                                            description VARCHAR(255) NOT NULL,
-    amount NUMERIC(12, 2) NOT NULL,
-    expense_date DATE NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    fixed_expense_id BIGINT, -- Clave foránea opcional a la plantilla del gasto fijo
-    created_by_user_id BIGINT,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                                            id BIGSERIAL PRIMARY KEY, description VARCHAR(255) NOT NULL,
+    amount NUMERIC(12, 2) NOT NULL, expense_date DATE NOT NULL,
+    category VARCHAR(50) NOT NULL, fixed_expense_id BIGINT,
+    created_by_user_id BIGINT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_exp_log_fixed_expense FOREIGN KEY (fixed_expense_id) REFERENCES fixed_expenses (id) ON DELETE SET NULL,
     CONSTRAINT fk_exp_log_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
     );
-CREATE INDEX IF NOT EXISTS idx_pp_main_product_id ON product_packaging(main_product_id);
-
-CREATE INDEX IF NOT EXISTS idx_pr_main_product_id ON product_recipes(main_product_id);
-
-CREATE INDEX IF NOT EXISTS idx_sm_product_id ON stock_movements(product_id);
-
-

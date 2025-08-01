@@ -32,7 +32,8 @@ public class TenantAdminController {
         Tenant newTenant = tenantAdminService.createTenantMetadata(requestDTO);
 
         try {
-            tenantAdminService.provisionTenantInfrastructure(newTenant.getSchemaName());
+            // --- CAMBIO: Pasar el objeto 'newTenant' completo ---
+            tenantAdminService.provisionTenantInfrastructure(newTenant);
         } catch (Exception e) {
             logger.error("Tenant metadata was created (ID: {}), but infrastructure provisioning failed. Manual intervention may be required.", newTenant.getId(), e);
             String errorMessage = "Tenant user and record were created, but failed to provision the database schema. Error: " + e.getMessage();
@@ -40,8 +41,6 @@ public class TenantAdminController {
         }
 
         logger.info("Successfully created and provisioned new tenant: {}", newTenant.getCompanyName());
-
-        // Devolvemos el objeto Tenant creado (sin datos sensibles)
         return new ResponseEntity<>(newTenant, HttpStatus.CREATED);
     }
 }
