@@ -1,6 +1,7 @@
 package com.one.core.application.dto.tenant.product;
 
 import com.one.core.domain.model.enums.ProductType;
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import lombok.Data;
 import java.math.BigDecimal;
 
@@ -18,7 +19,7 @@ public class ProductDTO {
     private String defaultSupplierName;
     private BigDecimal purchasePrice;
     private BigDecimal salePrice;
-    private String unitOfMeasure;
+    private UnitOfMeasure unitOfMeasure;
     private BigDecimal currentStock;
     private BigDecimal minimumStockLevel;
     private boolean isActive;

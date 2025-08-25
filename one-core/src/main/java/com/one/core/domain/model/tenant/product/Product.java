@@ -2,6 +2,7 @@ package com.one.core.domain.model.tenant.product;
 
 import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.enums.ProductType;
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import jakarta.persistence.*;
 import lombok.Data;
@@ -53,8 +54,9 @@ public class Product {
     @Column(name = "sale_price", precision = 12, scale = 2)
     private BigDecimal salePrice;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "unit_of_measure", length = 20, columnDefinition = "VARCHAR(20) DEFAULT 'UNIT'")
-    private String unitOfMeasure = "UNIT";
+    private UnitOfMeasure unitOfMeasure = UnitOfMeasure.UNIT;
 
     @Column(name = "current_stock", precision = 12, scale = 3, columnDefinition = "NUMERIC(12,3) DEFAULT 0.000")
     private BigDecimal currentStock = BigDecimal.ZERO;

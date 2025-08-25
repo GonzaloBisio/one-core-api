@@ -1,6 +1,7 @@
 package com.one.core.application.mapper.product;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.product.Product;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -66,7 +67,7 @@ public class ProductMapper {
             entity.setMinimumStockLevel(dto.getMinimumStockLevel());
         }
 
-        entity.setUnitOfMeasure(StringUtils.hasText(dto.getUnitOfMeasure()) ? dto.getUnitOfMeasure() : "UNIT");
+        entity.setUnitOfMeasure(dto.getUnitOfMeasure() != null ? dto.getUnitOfMeasure() : UnitOfMeasure.UNIT);
         entity.setActive(dto.isActive());
         entity.setBarcode(dto.getBarcode());
         entity.setImageUrl(dto.getImageUrl());
