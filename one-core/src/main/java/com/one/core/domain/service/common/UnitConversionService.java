@@ -43,4 +43,43 @@ public class UnitConversionService {
         }
         return unit.fromBase(quantity);
     }
+
+    /**
+     * Normalizes a quantity expressed in base units selecting the most
+     * appropriate unit of measure. If the quantity is less than one in the
+     * requested unit, it will be converted to the next smaller unit (e.g. 0.5
+     * KG becomes 500 G).
+     *
+     * @param baseQuantity quantity expressed in base units
+     * @param preferredUnit unit of measure requested by the caller
+     * @return normalized quantity and unit
+     */
+    public NormalizedQuantity normalizeFromBaseUnit(BigDecimal baseQuantity, UnitOfMeasure preferredUnit) {
+        if (baseQuantity == null || preferredUnit == null) {
+            return new NormalizedQuantity(baseQuantity, preferredUnit);
+        }
+
+        BigDecimal converted = fromBaseUnit(baseQuantity, preferredUnit);
+        if (converted.compareTo(BigDecimal.ONE) < 0) {
+            UnitOfMeasure smaller = smallerUnit(preferredUnit);
+            if (smaller != null) {
+                return new NormalizedQuantity(fromBaseUnit(baseQuantity, smaller), smaller);
+            }
+        }
+        return new NormalizedQuantity(converted, preferredUnit);
+    }
+
+    private UnitOfMeasure smallerUnit(UnitOfMeasure unit) {
+        return switch (unit) {
+            case KG -> UnitOfMeasure.G;
+            case L -> UnitOfMeasure.ML;
+            default -> null;
+        };
+    }
+
+    /**
+     * Simple container for a normalized quantity and its unit of measure.
+     * Records are used here for brevity and immutability.
+     */
+    public record NormalizedQuantity(BigDecimal quantity, UnitOfMeasure unit) { }
 }

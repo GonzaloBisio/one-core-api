@@ -4,6 +4,7 @@ import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.enums.UnitOfMeasure;
 import lombok.Data;
 import java.math.BigDecimal;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @Data
 public class ProductDTO {
@@ -19,8 +20,14 @@ public class ProductDTO {
     private String defaultSupplierName;
     private BigDecimal purchasePrice;
     private BigDecimal salePrice;
+
+    @Schema(description = "Unit of measure for stock quantities. All amounts are stored in base units (grams, milliliters or units) and normalized automatically.")
     private UnitOfMeasure unitOfMeasure;
+
+    @Schema(description = "Current stock expressed in unitOfMeasure. Values are normalized to base units.")
     private BigDecimal currentStock;
+
+    @Schema(description = "Minimum stock level expressed in unitOfMeasure. Values are normalized to base units.")
     private BigDecimal minimumStockLevel;
     private boolean isActive;
     private String barcode;
