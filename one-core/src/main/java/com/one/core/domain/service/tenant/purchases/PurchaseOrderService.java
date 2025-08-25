@@ -19,6 +19,7 @@ import com.one.core.domain.repository.tenant.purchases.PurchaseOrderRepository;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
 import com.one.core.domain.service.tenant.purchases.criteria.PurchaseOrderSpecification;
+import com.one.core.domain.service.common.UnitConversionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,7 @@ public class PurchaseOrderService {
     private final SystemUserRepository systemUserRepository;
     private final PurchaseOrderMapper purchaseOrderMapper;
     private final InventoryService inventoryService;
+    private final UnitConversionService unitConversionService;
 
     @Autowired
     public PurchaseOrderService(PurchaseOrderRepository purchaseOrderRepository,
@@ -54,7 +56,8 @@ public class PurchaseOrderService {
                                 SupplierRepository supplierRepository,
                                 SystemUserRepository systemUserRepository,
                                 PurchaseOrderMapper purchaseOrderMapper,
-                                InventoryService inventoryService) {
+                                InventoryService inventoryService,
+                                UnitConversionService unitConversionService) {
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderItemRepository = purchaseOrderItemRepository;
         this.productRepository = productRepository;
@@ -62,6 +65,7 @@ public class PurchaseOrderService {
         this.systemUserRepository = systemUserRepository;
         this.purchaseOrderMapper = purchaseOrderMapper;
         this.inventoryService = inventoryService;
+        this.unitConversionService = unitConversionService;
     }
 
     @Transactional
@@ -105,7 +109,7 @@ public class PurchaseOrderService {
         for (PurchaseOrderItem item : savedOrder.getItems()) {
             inventoryService.processIncomingStock(
                     item.getProduct().getId(),
-                    item.getQuantityReceived(), // La cantidad que acabamos de establecer
+                    unitConversionService.toBaseUnit(item.getQuantityReceived(), item.getProduct().getUnitOfMeasure()),
                     MovementType.PURCHASE_RECEIPT,
                     "PURCHASE_ORDER",
                     savedOrder.getId().toString(),
@@ -157,7 +161,7 @@ public class PurchaseOrderService {
 
             inventoryService.processIncomingStock(
                     orderItem.getProduct().getId(),
-                    quantityToReceiveNow,
+                    unitConversionService.toBaseUnit(quantityToReceiveNow, orderItem.getProduct().getUnitOfMeasure()),
                     MovementType.PURCHASE_RECEIPT,
                     "PURCHASE_ORDER",
                     order.getId().toString(),

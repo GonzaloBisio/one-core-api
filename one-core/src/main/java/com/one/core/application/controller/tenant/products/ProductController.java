@@ -34,7 +34,7 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<PageableResponse<ProductDTO>> getAllProducts(
             ProductFilterDTO filterDTO,
-            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
+            @PageableDefault(size = Integer.MAX_VALUE, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
         Page<ProductDTO> productPage = productService.getAllProducts(filterDTO, pageable);
