@@ -204,6 +204,28 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public List<ProductDTO> getAllPackaging(boolean activeOnly) {
+        List<Product> products = activeOnly
+                ? productRepository.findAllByProductTypeAndIsActiveTrueOrderByNameAsc(ProductType.PACKAGING)
+                : productRepository.findAllByProductTypeOrderByNameAsc(ProductType.PACKAGING);
+
+        return products.stream()
+                .map(productMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProductDTO> getAllPhysicalGoods(boolean activeOnly) {
+        List<Product> products = activeOnly
+                ? productRepository.findAllByProductTypeAndIsActiveTrueOrderByNameAsc(ProductType.PHYSICAL_GOOD)
+                : productRepository.findAllByProductTypeOrderByNameAsc(ProductType.PHYSICAL_GOOD);
+
+        return products.stream()
+                .map(productMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public Page<ProductDTO> getAllProducts(ProductFilterDTO filterDTO, Pageable pageable) {
         Specification<Product> spec = ProductSpecification.filterBy(filterDTO);
         Page<Product> productPage = productRepository.findAll(spec, pageable);

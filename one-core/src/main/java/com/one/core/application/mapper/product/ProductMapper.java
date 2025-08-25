@@ -46,9 +46,12 @@ public class ProductMapper {
 
         dto.setPurchasePrice(product.getPurchasePrice());
         dto.setSalePrice(product.getSalePrice());
-        dto.setUnitOfMeasure(product.getUnitOfMeasure());
-        dto.setCurrentStock(unitConversionService.fromBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure()));
-        dto.setMinimumStockLevel(unitConversionService.fromBaseUnit(product.getMinimumStockLevel(), product.getUnitOfMeasure()));
+
+        UnitConversionService.NormalizedQuantity normalizedStock =
+                unitConversionService.normalizeFromBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure());
+        dto.setUnitOfMeasure(normalizedStock.unit());
+        dto.setCurrentStock(normalizedStock.quantity());
+        dto.setMinimumStockLevel(unitConversionService.fromBaseUnit(product.getMinimumStockLevel(), normalizedStock.unit()));
         dto.setActive(product.isActive());
         dto.setBarcode(product.getBarcode());
         dto.setImageUrl(product.getImageUrl());

@@ -16,12 +16,15 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.Operation;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/products")
 @PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
+@Tag(name = "Products", description = "Manage products. Quantities are stored in base units (grams, milliliters, units) and normalized automatically.")
 public class ProductController {
 
     private final ProductService productService;
@@ -34,12 +37,33 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<PageableResponse<ProductDTO>> getAllProducts(
             ProductFilterDTO filterDTO,
-            @PageableDefault(size = Integer.MAX_VALUE, sort = "createdAt", direction = Sort.Direction.DESC)
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
             Pageable pageable
     ) {
         Page<ProductDTO> productPage = productService.getAllProducts(filterDTO, pageable);
         return ResponseEntity.ok(new PageableResponse<>(productPage));
     }
+
+    @Operation(
+            summary = "List all PACKAGING products (no pagination)",
+            description = "Devuelve todos los productos de tipo PACKAGING. Por defecto solo activos."
+    )
+    @GetMapping("/packaging/available")
+    public ResponseEntity<List<ProductDTO>> getAllPackaging(
+            @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(productService.getAllPackaging(activeOnly));
+    }
+
+    @Operation(
+            summary = "List all PHYSICAL_GOOD products (no pagination)",
+            description = "Devuelve todos los productos de tipo PHYSICAL_GOOD. Por defecto solo activos."
+    )
+    @GetMapping("/physicalgood/available")
+    public ResponseEntity<List<ProductDTO>> getAllPhysicalGoods(
+            @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(productService.getAllPhysicalGoods(activeOnly));
+    }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
@@ -51,12 +75,14 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductBySku(sku));
     }
 
+    @Operation(summary = "Create product", description = "Quantities are stored in base units (grams, milliliters, units) and normalized automatically.")
     @PostMapping
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
         ProductDTO createdProduct = productService.createProduct(productDTO);
         return new ResponseEntity<>(createdProduct, HttpStatus.CREATED);
     }
 
+    @Operation(summary = "Update product", description = "Quantities are stored in base units (grams, milliliters, units) and normalized automatically.")
     @PutMapping("/{id}")
     public ResponseEntity<ProductDTO> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDTO productDTO) {
         return ResponseEntity.ok(productService.updateProduct(id, productDTO));
