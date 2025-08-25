@@ -26,6 +26,7 @@ import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.sales.SalesOrderRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
 import com.one.core.domain.service.tenant.sales.criteria.SalesOrderSpecification;
+import com.one.core.domain.service.common.UnitConversionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +55,7 @@ public class SalesOrderService {
     private final SystemUserRepository systemUserRepository;
     private final ProductRecipeRepository productRecipeRepository;
     private final ProductPackagingRepository productPackagingRepository;
+    private final UnitConversionService unitConversionService;
 
 
     @Autowired
@@ -64,7 +66,8 @@ public class SalesOrderService {
                              InventoryService inventoryService,
                              SystemUserRepository systemUserRepository,
                              ProductRecipeRepository productRecipeRepository,
-                             ProductPackagingRepository productPackagingRepository) {
+                             ProductPackagingRepository productPackagingRepository,
+                             UnitConversionService unitConversionService) {
         this.salesOrderRepository = salesOrderRepository;
         this.productRepository = productRepository;
         this.customerRepository = customerRepository;
@@ -73,6 +76,7 @@ public class SalesOrderService {
         this.productRecipeRepository = productRecipeRepository;
         this.systemUserRepository = systemUserRepository;
         this.productPackagingRepository = productPackagingRepository;
+        this.unitConversionService = unitConversionService;
     }
 
     @Transactional
@@ -183,7 +187,8 @@ public class SalesOrderService {
             // --- LÓGICA SIMPLIFICADA ---
             // Ahora, tanto PHYSICAL_GOOD como COMPOUND son inventariables y se tratan igual.
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
-                if (!inventoryService.isStockAvailable(productSold.getId(), item.getQuantity())) {
+                BigDecimal qtyBase = unitConversionService.toBaseUnit(item.getQuantity(), productSold.getUnitOfMeasure());
+                if (!inventoryService.isStockAvailable(productSold.getId(), qtyBase)) {
                     throw new ValidationException("Insufficient stock for product: " + productSold.getName());
                 }
             }
@@ -192,7 +197,8 @@ public class SalesOrderService {
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packaging : packagingItems) {
                 BigDecimal requiredQuantity = packaging.getQuantity().multiply(item.getQuantity());
-                if (!inventoryService.isStockAvailable(packaging.getPackagingProduct().getId(), requiredQuantity)) {
+                BigDecimal requiredBase = unitConversionService.toBaseUnit(requiredQuantity, packaging.getPackagingProduct().getUnitOfMeasure());
+                if (!inventoryService.isStockAvailable(packaging.getPackagingProduct().getId(), requiredBase)) {
                     throw new ValidationException("Insufficient stock for packaging: " + packaging.getPackagingProduct().getName());
                 }
             }
@@ -207,7 +213,7 @@ public class SalesOrderService {
             // Se descuenta el stock del producto vendido, sin importar si es simple o compuesto.
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
                 inventoryService.processOutgoingStock(
-                        productSold.getId(), item.getQuantity(), MovementType.SALE_CONFIRMED,
+                        productSold.getId(), unitConversionService.toBaseUnit(item.getQuantity(), productSold.getUnitOfMeasure()), MovementType.SALE_CONFIRMED,
                         "SALES_ORDER", order.getId().toString(), userId, "Sale for order ID: " + order.getId()
                 );
             }
@@ -216,7 +222,8 @@ public class SalesOrderService {
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packagingItem : packagingItems) {
                 BigDecimal quantityToConsume = packagingItem.getQuantity().multiply(item.getQuantity());
-                inventoryService.processOutgoingStock(packagingItem.getPackagingProduct().getId(), quantityToConsume, MovementType.PACKAGING_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Packaging for product: " + productSold.getName());
+                BigDecimal consumeBase = unitConversionService.toBaseUnit(quantityToConsume, packagingItem.getPackagingProduct().getUnitOfMeasure());
+                inventoryService.processOutgoingStock(packagingItem.getPackagingProduct().getId(), consumeBase, MovementType.PACKAGING_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Packaging for product: " + productSold.getName());
             }
         }
     }
@@ -229,7 +236,7 @@ public class SalesOrderService {
             // Se devuelve el stock del producto vendido, sea simple o compuesto.
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD || productSold.getProductType() == ProductType.COMPOUND) {
                 inventoryService.processIncomingStock(
-                        productSold.getId(), item.getQuantity(), MovementType.SALE_CANCELLED,
+                        productSold.getId(), unitConversionService.toBaseUnit(item.getQuantity(), productSold.getUnitOfMeasure()), MovementType.SALE_CANCELLED,
                         "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Stock returned for cancelled order ID: " + order.getId()
                 );
             }
@@ -238,7 +245,8 @@ public class SalesOrderService {
             List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
             for (ProductPackaging packagingItem : packagingItems) {
                 BigDecimal quantityToReturn = packagingItem.getQuantity().multiply(item.getQuantity());
-                inventoryService.processIncomingStock(packagingItem.getPackagingProduct().getId(), quantityToReturn, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Packaging stock returned for product: " + productSold.getName());
+                BigDecimal returnBase = unitConversionService.toBaseUnit(quantityToReturn, packagingItem.getPackagingProduct().getUnitOfMeasure());
+                inventoryService.processIncomingStock(packagingItem.getPackagingProduct().getId(), returnBase, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Packaging stock returned for product: " + productSold.getName());
             }
         }
     }
