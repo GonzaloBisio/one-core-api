@@ -15,6 +15,7 @@ import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.production.ProductionOrderRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
+import com.one.core.domain.service.common.UnitConversionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,18 +35,21 @@ public class ProductionOrderService {
     private final ProductRecipeRepository productRecipeRepository;
     private final InventoryService inventoryService;
     private final ProductionOrderMapper productionOrderMapper;
+    private final UnitConversionService unitConversionService;
 
     @Autowired
     public ProductionOrderService(ProductionOrderRepository productionOrderRepository,
                                   ProductRepository productRepository,
                                   ProductRecipeRepository productRecipeRepository,
                                   InventoryService inventoryService,
-                                  ProductionOrderMapper productionOrderMapper) {
+                                  ProductionOrderMapper productionOrderMapper,
+                                  UnitConversionService unitConversionService) {
         this.productionOrderRepository = productionOrderRepository;
         this.productRepository = productRepository;
         this.productRecipeRepository = productRecipeRepository;
         this.inventoryService = inventoryService;
         this.productionOrderMapper = productionOrderMapper;
+        this.unitConversionService = unitConversionService;
     }
 
     @Transactional
@@ -70,7 +74,8 @@ public class ProductionOrderService {
         for (Map.Entry<Product, BigDecimal> entry : requiredRawIngredients.entrySet()) {
             Product ingredient = entry.getKey();
             BigDecimal requiredQuantity = entry.getValue();
-            if (!inventoryService.isStockAvailable(ingredient.getId(), requiredQuantity)) {
+            BigDecimal requiredBase = unitConversionService.toBaseUnit(requiredQuantity, ingredient.getUnitOfMeasure());
+            if (!inventoryService.isStockAvailable(ingredient.getId(), requiredBase)) {
                 throw new ValidationException("Insufficient stock for raw ingredient: " + ingredient.getName());
             }
         }
@@ -88,9 +93,10 @@ public class ProductionOrderService {
         for (Map.Entry<Product, BigDecimal> entry : requiredRawIngredients.entrySet()) {
             Product ingredient = entry.getKey();
             BigDecimal quantityToConsume = entry.getValue();
+            BigDecimal consumeBase = unitConversionService.toBaseUnit(quantityToConsume, ingredient.getUnitOfMeasure());
             inventoryService.processOutgoingStock(
                     ingredient.getId(),
-                    quantityToConsume,
+                    consumeBase,
                     MovementType.COMPONENT_CONSUMPTION,
                     "PRODUCTION_ORDER",
                     savedOrder.getId().toString(),
@@ -102,7 +108,7 @@ public class ProductionOrderService {
         // b) Incrementar stock del producto terminado
         inventoryService.processIncomingStock(
                 productToProduce.getId(),
-                savedOrder.getQuantityProduced(),
+                unitConversionService.toBaseUnit(savedOrder.getQuantityProduced(), productToProduce.getUnitOfMeasure()),
                 MovementType.PRODUCTION_IN,
                 "PRODUCTION_ORDER",
                 savedOrder.getId().toString(),

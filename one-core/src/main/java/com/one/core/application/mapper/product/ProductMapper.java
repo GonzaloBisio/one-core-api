@@ -4,12 +4,19 @@ import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.product.Product;
 import org.springframework.stereotype.Component;
+import com.one.core.domain.service.common.UnitConversionService;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 
 @Component
 public class ProductMapper {
+
+    private final UnitConversionService unitConversionService;
+
+    public ProductMapper(UnitConversionService unitConversionService) {
+        this.unitConversionService = unitConversionService;
+    }
 
 
     /**
@@ -40,8 +47,8 @@ public class ProductMapper {
         dto.setPurchasePrice(product.getPurchasePrice());
         dto.setSalePrice(product.getSalePrice());
         dto.setUnitOfMeasure(product.getUnitOfMeasure());
-        dto.setCurrentStock(product.getCurrentStock());
-        dto.setMinimumStockLevel(product.getMinimumStockLevel());
+        dto.setCurrentStock(unitConversionService.fromBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure()));
+        dto.setMinimumStockLevel(unitConversionService.fromBaseUnit(product.getMinimumStockLevel(), product.getUnitOfMeasure()));
         dto.setActive(product.isActive());
         dto.setBarcode(product.getBarcode());
         dto.setImageUrl(product.getImageUrl());

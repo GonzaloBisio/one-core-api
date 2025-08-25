@@ -25,6 +25,7 @@ import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
 import com.one.core.domain.service.tenant.product.criteria.ProductSpecification;
 import com.one.core.domain.service.tenant.util.ProductUtils;
+import com.one.core.domain.service.common.UnitConversionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,7 @@ public class ProductService {
     private final ProductPackagingRepository productPackagingRepository;
     private final AuthenticationFacade authenticationFacade;
     private final InventoryService inventoryService;
+    private final UnitConversionService unitConversionService;
 
 
 
@@ -68,7 +70,8 @@ public class ProductService {
                           ProductUtils productUtils,
                           ProductPackagingRepository productPackagingRepository,
                           AuthenticationFacade authenticationFacade,
-                          InventoryService inventoryService) {
+                          InventoryService inventoryService,
+                          UnitConversionService unitConversionService) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
         this.supplierRepository = supplierRepository;
@@ -78,6 +81,7 @@ public class ProductService {
         this.productPackagingRepository = productPackagingRepository;
         this.authenticationFacade = authenticationFacade;
         this.inventoryService = inventoryService;
+        this.unitConversionService = unitConversionService;
     }
 
     @Transactional
@@ -129,6 +133,9 @@ public class ProductService {
             product.setDefaultSupplier(supplier);
         }
 
+        product.setCurrentStock(unitConversionService.toBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure()));
+        product.setMinimumStockLevel(unitConversionService.toBaseUnit(product.getMinimumStockLevel(), product.getUnitOfMeasure()));
+
         product.setActive(true);
         Product savedProduct = productRepository.save(product);
 
@@ -155,6 +162,13 @@ public class ProductService {
         }
 
         productMapper.updateEntityFromDTO(productDTO, product);
+
+        if (productDTO.getCurrentStock() != null) {
+            product.setCurrentStock(unitConversionService.toBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure()));
+        }
+        if (productDTO.getMinimumStockLevel() != null) {
+            product.setMinimumStockLevel(unitConversionService.toBaseUnit(product.getMinimumStockLevel(), product.getUnitOfMeasure()));
+        }
 
         if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.PACKAGING) {
             if (!StringUtils.hasText(product.getSku())) {
