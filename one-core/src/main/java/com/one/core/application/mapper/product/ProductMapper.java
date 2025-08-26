@@ -3,8 +3,8 @@ package com.one.core.application.mapper.product;
 import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.product.Product;
-import org.springframework.stereotype.Component;
 import com.one.core.domain.service.common.UnitConversionService;
+import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -18,14 +18,28 @@ public class ProductMapper {
         this.unitConversionService = unitConversionService;
     }
 
+    /* ===========================
+       Helpers null-safe
+       =========================== */
 
-    /**
-     * Convierte una entidad Product a ProductDTO.
-     */
+    private static BigDecimal zeroIfNull(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
+    }
+
+    private static UnitOfMeasure defaultUom(UnitOfMeasure u) {
+        return u != null ? u : UnitOfMeasure.UNIT;
+    }
+
+    private static String trimToNull(String s) {
+        return StringUtils.hasText(s) ? s.trim() : null;
+    }
+
+    /* ===========================
+       Entity -> DTO
+       =========================== */
     public ProductDTO toDTO(Product product) {
-        if (product == null) {
-            return null;
-        }
+        if (product == null) return null;
+
         ProductDTO dto = new ProductDTO();
         dto.setId(product.getId());
         dto.setSku(product.getSku());
@@ -44,14 +58,24 @@ public class ProductMapper {
             dto.setDefaultSupplierName(product.getDefaultSupplier().getName());
         }
 
-        dto.setPurchasePrice(product.getPurchasePrice());
-        dto.setSalePrice(product.getSalePrice());
+        // Precios con default seguro
+        dto.setPurchasePrice(zeroIfNull(product.getPurchasePrice()));
+        dto.setSalePrice(zeroIfNull(product.getSalePrice()));
 
-        UnitConversionService.NormalizedQuantity normalizedStock =
-                unitConversionService.normalizeFromBaseUnit(product.getCurrentStock(), product.getUnitOfMeasure());
-        dto.setUnitOfMeasure(normalizedStock.unit());
-        dto.setCurrentStock(normalizedStock.quantity());
-        dto.setMinimumStockLevel(unitConversionService.fromBaseUnit(product.getMinimumStockLevel(), normalizedStock.unit()));
+        // UoM y cantidades: siempre con defaults seguros
+        UnitOfMeasure uom = defaultUom(product.getUnitOfMeasure());
+        BigDecimal current = zeroIfNull(product.getCurrentStock());
+        BigDecimal minLvl = zeroIfNull(product.getMinimumStockLevel());
+
+        UnitConversionService.NormalizedQuantity normalized =
+                unitConversionService.normalizeFromBaseUnit(current, uom);
+
+        dto.setUnitOfMeasure(normalized.unit());
+        dto.setCurrentStock(normalized.quantity());
+        dto.setMinimumStockLevel(
+                unitConversionService.fromBaseUnit(minLvl, normalized.unit())
+        );
+
         dto.setActive(product.isActive());
         dto.setBarcode(product.getBarcode());
         dto.setImageUrl(product.getImageUrl());
@@ -59,17 +83,29 @@ public class ProductMapper {
         return dto;
     }
 
-    /**
-     * Mapea los campos de un ProductDTO a una entidad Product existente.
-     */
+    /* ===========================
+       DTO -> Entity (update)
+       =========================== */
     public void updateEntityFromDTO(ProductDTO dto, Product entity) {
-        entity.setName(dto.getName());
-        entity.setProductType(dto.getProductType()); // <-- LÍNEA CLAVE AÑADIDA
-        entity.setSku(StringUtils.hasText(dto.getSku()) ? dto.getSku().trim() : null);
-        entity.setDescription(dto.getDescription());
-        entity.setSalePrice(dto.getSalePrice() != null ? dto.getSalePrice() : BigDecimal.ZERO);
-        entity.setPurchasePrice(dto.getPurchasePrice() != null ? dto.getPurchasePrice() : BigDecimal.ZERO);
+        if (dto == null || entity == null) return;
 
+        // String fields
+        entity.setName(trimToNull(dto.getName()));
+        entity.setSku(trimToNull(dto.getSku()));
+        entity.setDescription(trimToNull(dto.getDescription()));
+        entity.setBarcode(trimToNull(dto.getBarcode()));
+        entity.setImageUrl(trimToNull(dto.getImageUrl()));
+
+        // Solo pisamos productType si viene en el DTO
+        if (dto.getProductType() != null) {
+            entity.setProductType(dto.getProductType());
+        }
+
+        // Precios (si el DTO trae null, guardamos 0 para evitar NPEs en cálculos)
+        entity.setSalePrice(zeroIfNull(dto.getSalePrice()));
+        entity.setPurchasePrice(zeroIfNull(dto.getPurchasePrice()));
+
+        // Cantidades: solo actualizamos si vienen informadas
         if (dto.getCurrentStock() != null) {
             entity.setCurrentStock(dto.getCurrentStock());
         }
@@ -77,19 +113,42 @@ public class ProductMapper {
             entity.setMinimumStockLevel(dto.getMinimumStockLevel());
         }
 
-        entity.setUnitOfMeasure(dto.getUnitOfMeasure() != null ? dto.getUnitOfMeasure() : UnitOfMeasure.UNIT);
+        // UoM: si viene en el DTO lo usamos; si no, garantizamos que el entity no quede en null
+        if (dto.getUnitOfMeasure() != null) {
+            entity.setUnitOfMeasure(dto.getUnitOfMeasure());
+        } else if (entity.getUnitOfMeasure() == null) {
+            entity.setUnitOfMeasure(UnitOfMeasure.UNIT);
+        }
+
+        // Active: si tu DTO usa boolean primitivo, esta línea está bien;
+        // si fuera Boolean, conviene chequear null antes de pisar.
         entity.setActive(dto.isActive());
-        entity.setBarcode(dto.getBarcode());
-        entity.setImageUrl(dto.getImageUrl());
     }
 
-    /**
-     * Crea una nueva entidad Product a partir de un ProductDTO.
-     */
+    /* ===========================
+       DTO -> Entity (create)
+       =========================== */
     public Product toEntityForCreation(ProductDTO dto) {
         Product entity = new Product();
-        // Al llamar a updateEntityFromDTO, ahora sí se copiará el productType
         updateEntityFromDTO(dto, entity);
+
+        // Defaults finales de seguridad para evitar nulls en inserts
+        if (entity.getUnitOfMeasure() == null) {
+            entity.setUnitOfMeasure(UnitOfMeasure.UNIT);
+        }
+        if (entity.getCurrentStock() == null) {
+            entity.setCurrentStock(BigDecimal.ZERO);
+        }
+        if (entity.getMinimumStockLevel() == null) {
+            entity.setMinimumStockLevel(BigDecimal.ZERO);
+        }
+        if (entity.getPurchasePrice() == null) {
+            entity.setPurchasePrice(BigDecimal.ZERO);
+        }
+        if (entity.getSalePrice() == null) {
+            entity.setSalePrice(BigDecimal.ZERO);
+        }
+
         return entity;
     }
 }
