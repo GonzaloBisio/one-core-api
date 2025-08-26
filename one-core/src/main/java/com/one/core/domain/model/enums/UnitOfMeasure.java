@@ -1,5 +1,7 @@
 package com.one.core.domain.model.enums;
 
+import lombok.Getter;
+
 import java.math.BigDecimal;
 
 /**
@@ -14,9 +16,10 @@ public enum UnitOfMeasure {
     L(Magnitude.VOLUMEN, new BigDecimal("1000")),
     ML(Magnitude.VOLUMEN, BigDecimal.ONE),
     CM3(Magnitude.VOLUMEN, BigDecimal.ONE),
-    PERCENTAGE(Magnitude.UNIDAD, BigDecimal.ONE);
+    PERCENTAGE(Magnitude.RELATIVO, BigDecimal.ONE); // 0..1 (0.90 = 90%)
 
 
+    @Getter
     private final Magnitude magnitude;
     private final BigDecimal factorToBase;
 
@@ -50,13 +53,10 @@ public enum UnitOfMeasure {
     public boolean isPercentage() { return this == PERCENTAGE; }
 
 
-    public Magnitude getMagnitude() {
-        return magnitude;
-    }
-
     public enum Magnitude {
         PESO,
         VOLUMEN,
-        UNIDAD
+        UNIDAD,
+        RELATIVO
     }
 }

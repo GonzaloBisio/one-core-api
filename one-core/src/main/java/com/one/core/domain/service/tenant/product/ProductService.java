@@ -272,58 +272,58 @@ public class ProductService {
     }
 
     @Transactional
-    public List<ProductRecipeDTO> setOrUpdateRecipe(Long mainProductId, List<ProductRecipeDTO> recipeItemsDTO) {
+    public List<ProductRecipeDTO> setOrUpdateRecipe(Long mainProductId, List<ProductRecipeDTO> itemsDTO) {
         Product mainProduct = productRepository.findById(mainProductId)
                 .orElseThrow(() -> new ResourceNotFoundException("Main Product", "id", mainProductId));
         if (mainProduct.getProductType() != ProductType.COMPOUND) {
             throw new ValidationException("Recipes can only be set for products of type COMPOUND.");
         }
 
-        // limpiar anterior
+        // Validación de sumatoria de % (si aplica)
+        BigDecimal sumPct = itemsDTO.stream()
+                .filter(i -> i.getUnitOfMeasure() == UnitOfMeasure.PERCENTAGE)
+                .map(ProductRecipeDTO::getQuantityRequired)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (sumPct.compareTo(BigDecimal.ONE) > 0) {
+            throw new ValidationException("La sumatoria de líneas en PERCENTAGE supera 100% (use valores 0..1, p.ej. 0.90 = 90%).");
+        }
+
+        // Borrado y armado
         List<ProductRecipe> oldRecipe = productRecipeRepository.findByMainProductId(mainProductId);
         if (!oldRecipe.isEmpty()) productRecipeRepository.deleteAllInBatch(oldRecipe);
 
         List<ProductRecipe> newRecipeItems = new ArrayList<>();
-
-        for (ProductRecipeDTO itemDTO : recipeItemsDTO) {
-            Product ingredient = productRepository.findById(itemDTO.getIngredientProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", itemDTO.getIngredientProductId()));
-
-            ProductType type = ingredient.getProductType();
-            if (type != ProductType.PHYSICAL_GOOD && type != ProductType.COMPOUND) {
-                throw new ValidationException("Ingredient '" + ingredient.getName() + "' must be PHYSICAL_GOOD or COMPOUND.");
+        for (ProductRecipeDTO dto : itemsDTO) {
+            Product ingredient = productRepository.findById(dto.getIngredientProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", dto.getIngredientProductId()));
+            ProductType t = ingredient.getProductType();
+            if (t != ProductType.PHYSICAL_GOOD && t != ProductType.COMPOUND) {
+                throw new ValidationException("Ingredient '" + ingredient.getName() + "' must be stockable (PHYSICAL_GOOD or COMPOUND).");
             }
 
-            UnitOfMeasure dtoUom = (itemDTO.getUnitOfMeasure() != null)
-                    ? itemDTO.getUnitOfMeasure()
-                    : ingredient.getUnitOfMeasure(); // fallback
-
-            // --- Validaciones defensivas ---
-            if (dtoUom.isPercentage()) {
-                // % solo tiene sentido para PESO o VOLUMEN y debe coincidir la magnitud
-                var mainMag = mainProduct.getUnitOfMeasure().getMagnitude();
-                var ingMag  = ingredient.getUnitOfMeasure().getMagnitude();
-                if (mainMag == UnitOfMeasure.Magnitude.UNIDAD || ingMag == UnitOfMeasure.Magnitude.UNIDAD || mainMag != ingMag) {
-                    throw new ValidationException("Percentage requires weight/volume and same magnitude as main product.");
-                }
-                if (itemDTO.getQuantityRequired().compareTo(BigDecimal.ZERO) <= 0
-                        || itemDTO.getQuantityRequired().compareTo(BigDecimal.ONE) > 0) {
-                    throw new ValidationException("Percentage must be a fraction in (0, 1].");
+            // Reglas de compatibilidad de unidad
+            UnitOfMeasure uom = dto.getUnitOfMeasure();
+            if (uom == UnitOfMeasure.PERCENTAGE) {
+                // 0..1
+                if (dto.getQuantityRequired().compareTo(BigDecimal.ZERO) <= 0
+                        || dto.getQuantityRequired().compareTo(BigDecimal.ONE) > 0) {
+                    throw new ValidationException("Para PERCENTAGE use valores entre 0 y 1 (p.ej., 0.90 = 90%).");
                 }
             } else {
-                // Cantidad absoluta: la unidad debe coincidir con la magnitud del ingrediente
-                if (dtoUom.getMagnitude() != ingredient.getUnitOfMeasure().getMagnitude()) {
-                    throw new ValidationException("Unit of measure for '" + ingredient.getName()
-                            + "' must match its magnitude (" + ingredient.getUnitOfMeasure().getMagnitude() + ").");
+                // Si no es porcentaje, la magnitud debe coincidir con la del ingrediente
+                if (uom.getMagnitude() != ingredient.getUnitOfMeasure().getMagnitude()) {
+                    throw new ValidationException(
+                            "La unidad de la línea (" + uom + ") no es compatible con el ingrediente (" + ingredient.getUnitOfMeasure() + ")."
+                    );
                 }
             }
 
-            ProductRecipe item = new ProductRecipe();
-            item.setMainProduct(mainProduct);
-            item.setIngredientProduct(ingredient);
-            item.setQuantityRequired(itemDTO.getQuantityRequired());
-            item.setUnitOfMeasure(dtoUom);
-            newRecipeItems.add(item);
+            ProductRecipe r = new ProductRecipe();
+            r.setMainProduct(mainProduct);
+            r.setIngredientProduct(ingredient);
+            r.setQuantityRequired(dto.getQuantityRequired());
+            r.setUnitOfMeasure(uom); // importante
+            newRecipeItems.add(r);
         }
 
         productRecipeRepository.saveAllAndFlush(newRecipeItems);
