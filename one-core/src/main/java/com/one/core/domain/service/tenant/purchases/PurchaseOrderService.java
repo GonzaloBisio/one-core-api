@@ -75,14 +75,15 @@ public class PurchaseOrderService {
 
         PurchaseOrder order = new PurchaseOrder();
         order.setOrderDate(LocalDate.now());
-        // CAMBIO: El estado ahora es FULLY_RECEIVED por defecto, saltando DRAFT.
         order.setStatus(PurchaseOrderStatus.FULLY_RECEIVED);
         order.setExpectedDeliveryDate(requestDTO.getExpectedDeliveryDate());
         order.setNotes(requestDTO.getNotes());
 
-        Supplier supplier = supplierRepository.findById(requestDTO.getSupplierId())
-                .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", requestDTO.getSupplierId()));
-        order.setSupplier(supplier);
+        if (requestDTO.getSupplierId() != null) {
+            Supplier supplier = supplierRepository.findById(requestDTO.getSupplierId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Supplier", "id", requestDTO.getSupplierId()));
+            order.setSupplier(supplier);
+        }
         order.setCreatedByUser(systemUser);
 
         List<PurchaseOrderItem> items = new ArrayList<>();

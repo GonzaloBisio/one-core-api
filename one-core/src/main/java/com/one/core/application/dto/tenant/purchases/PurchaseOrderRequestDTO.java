@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 public class PurchaseOrderRequestDTO {
-    @NotNull private Long supplierId;
+    private Long supplierId;
     private LocalDate expectedDeliveryDate;
     @NotEmpty private List<@Valid PurchaseOrderItemRequestDTO> items;
     private String notes;
