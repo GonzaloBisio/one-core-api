@@ -59,11 +59,11 @@ CREATE TABLE IF NOT EXISTS sales_order_items (
     );
 
 CREATE TABLE IF NOT EXISTS purchase_orders (
-                                               id BIGSERIAL PRIMARY KEY, supplier_id BIGINT NOT NULL, order_date DATE NOT NULL DEFAULT CURRENT_DATE,
+                                               id BIGSERIAL PRIMARY KEY, supplier_id BIGINT , order_date DATE NOT NULL DEFAULT CURRENT_DATE,
                                                expected_delivery_date DATE, status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
     total_amount NUMERIC(14, 2) DEFAULT 0.00, notes TEXT, created_by_user_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers (id) ON DELETE SET NULL,
     CONSTRAINT fk_po_created_by FOREIGN KEY (created_by_user_id) REFERENCES public.system_users (id) ON DELETE SET NULL
     );
 
