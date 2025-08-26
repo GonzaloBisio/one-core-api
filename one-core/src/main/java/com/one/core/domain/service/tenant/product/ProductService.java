@@ -226,6 +226,17 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public List<ProductDTO> getAllCompound(boolean activeOnly) {
+        List<Product> products = activeOnly
+                ? productRepository.findAllByProductTypeAndIsActiveTrueOrderByNameAsc(ProductType.COMPOUND)
+                : productRepository.findAllByProductTypeOrderByNameAsc(ProductType.COMPOUND);
+
+        return products.stream()
+                .map(productMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public Page<ProductDTO> getAllProducts(ProductFilterDTO filterDTO, Pageable pageable) {
         Specification<Product> spec = ProductSpecification.filterBy(filterDTO);
         Page<Product> productPage = productRepository.findAll(spec, pageable);

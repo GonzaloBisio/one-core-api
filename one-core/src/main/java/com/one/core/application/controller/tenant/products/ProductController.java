@@ -64,6 +64,16 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllPhysicalGoods(activeOnly));
     }
 
+    @Operation(
+            summary = "List all PHYSICAL_GOOD products (no pagination)",
+            description = "Devuelve todos los productos de tipo PHYSICAL_GOOD. Por defecto solo activos."
+    )
+    @GetMapping("/compound/available")
+    public ResponseEntity<List<ProductDTO>> getAllCompound(
+            @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
+        return ResponseEntity.ok(productService.getAllCompound(activeOnly));
+    }
+
 
     @GetMapping("/{id}")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
