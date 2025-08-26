@@ -12,6 +12,7 @@ import com.one.core.application.security.AuthenticationFacade;
 import com.one.core.config.multitenancy.TenantContext;
 import com.one.core.domain.model.enums.IndustryType;
 import com.one.core.domain.model.enums.ProductType;
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.product.Product;
 import com.one.core.domain.model.tenant.product.ProductCategory;
 import com.one.core.domain.model.tenant.product.ProductPackaging;
@@ -278,44 +279,70 @@ public class ProductService {
             throw new ValidationException("Recipes can only be set for products of type COMPOUND.");
         }
 
+        // limpiar anterior
         List<ProductRecipe> oldRecipe = productRecipeRepository.findByMainProductId(mainProductId);
-        if (!oldRecipe.isEmpty()) {
-            productRecipeRepository.deleteAllInBatch(oldRecipe);
-        }
+        if (!oldRecipe.isEmpty()) productRecipeRepository.deleteAllInBatch(oldRecipe);
 
         List<ProductRecipe> newRecipeItems = new ArrayList<>();
+
         for (ProductRecipeDTO itemDTO : recipeItemsDTO) {
-            Product ingredientProduct = productRepository.findById(itemDTO.getIngredientProductId())
+            Product ingredient = productRepository.findById(itemDTO.getIngredientProductId())
                     .orElseThrow(() -> new ResourceNotFoundException("Ingredient Product", "id", itemDTO.getIngredientProductId()));
-            ProductType type = ingredientProduct.getProductType();
+
+            ProductType type = ingredient.getProductType();
             if (type != ProductType.PHYSICAL_GOOD && type != ProductType.COMPOUND) {
-                throw new ValidationException("Ingredient '" + ingredientProduct.getName() + "' must be a stockable item (PHYSICAL_GOOD or COMPOUND).");
+                throw new ValidationException("Ingredient '" + ingredient.getName() + "' must be PHYSICAL_GOOD or COMPOUND.");
             }
 
-            ProductRecipe recipeItem = new ProductRecipe();
-            recipeItem.setMainProduct(mainProduct);
-            recipeItem.setIngredientProduct(ingredientProduct);
-            recipeItem.setQuantityRequired(itemDTO.getQuantityRequired());
-            newRecipeItems.add(recipeItem);
+            UnitOfMeasure dtoUom = (itemDTO.getUnitOfMeasure() != null)
+                    ? itemDTO.getUnitOfMeasure()
+                    : ingredient.getUnitOfMeasure(); // fallback
+
+            // --- Validaciones defensivas ---
+            if (dtoUom.isPercentage()) {
+                // % solo tiene sentido para PESO o VOLUMEN y debe coincidir la magnitud
+                var mainMag = mainProduct.getUnitOfMeasure().getMagnitude();
+                var ingMag  = ingredient.getUnitOfMeasure().getMagnitude();
+                if (mainMag == UnitOfMeasure.Magnitude.UNIDAD || ingMag == UnitOfMeasure.Magnitude.UNIDAD || mainMag != ingMag) {
+                    throw new ValidationException("Percentage requires weight/volume and same magnitude as main product.");
+                }
+                if (itemDTO.getQuantityRequired().compareTo(BigDecimal.ZERO) <= 0
+                        || itemDTO.getQuantityRequired().compareTo(BigDecimal.ONE) > 0) {
+                    throw new ValidationException("Percentage must be a fraction in (0, 1].");
+                }
+            } else {
+                // Cantidad absoluta: la unidad debe coincidir con la magnitud del ingrediente
+                if (dtoUom.getMagnitude() != ingredient.getUnitOfMeasure().getMagnitude()) {
+                    throw new ValidationException("Unit of measure for '" + ingredient.getName()
+                            + "' must match its magnitude (" + ingredient.getUnitOfMeasure().getMagnitude() + ").");
+                }
+            }
+
+            ProductRecipe item = new ProductRecipe();
+            item.setMainProduct(mainProduct);
+            item.setIngredientProduct(ingredient);
+            item.setQuantityRequired(itemDTO.getQuantityRequired());
+            item.setUnitOfMeasure(dtoUom);
+            newRecipeItems.add(item);
         }
 
         productRecipeRepository.saveAllAndFlush(newRecipeItems);
-
         return getRecipeItems(mainProductId);
     }
 
     @Transactional(readOnly = true)
     public List<ProductRecipeDTO> getRecipeItems(Long mainProductId) {
-        List<ProductRecipe> recipeItems = productRecipeRepository.findByMainProductId(mainProductId);
-        return recipeItems.stream().map(item -> {
-            ProductRecipeDTO dto = new ProductRecipeDTO();
-            dto.setId(item.getId());
-            dto.setIngredientProductId(item.getIngredientProduct().getId());
-            dto.setIngredientProductName(item.getIngredientProduct().getName());
-            dto.setIngredientProductSku(item.getIngredientProduct().getSku());
-            dto.setQuantityRequired(item.getQuantityRequired());
-            return dto;
-        }).collect(Collectors.toList());
+        return productRecipeRepository.findByMainProductId(mainProductId).stream()
+                .map(item -> {
+                    ProductRecipeDTO dto = new ProductRecipeDTO();
+                    dto.setId(item.getId());
+                    dto.setIngredientProductId(item.getIngredientProduct().getId());
+                    dto.setIngredientProductName(item.getIngredientProduct().getName());
+                    dto.setIngredientProductSku(item.getIngredientProduct().getSku());
+                    dto.setQuantityRequired(item.getQuantityRequired());
+                    dto.setUnitOfMeasure(item.getUnitOfMeasure()); // NUEVO
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     @Transactional

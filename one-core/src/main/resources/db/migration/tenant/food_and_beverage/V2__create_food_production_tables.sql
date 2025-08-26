@@ -2,14 +2,33 @@
 -- TABLAS ESPECÍFICAS PARA TENANTS DE INDUSTRIA GASTRONÓMICA
 -- =================================================================
 
+
 CREATE TABLE IF NOT EXISTS product_recipes (
                                                id BIGSERIAL PRIMARY KEY,
                                                main_product_id BIGINT NOT NULL,
                                                ingredient_product_id BIGINT NOT NULL,
-                                               quantity_required NUMERIC(10, 3) NOT NULL,
-    CONSTRAINT fk_recipe_main_product FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
-    CONSTRAINT fk_recipe_ingredient_product FOREIGN KEY (ingredient_product_id) REFERENCES products (id) ON DELETE RESTRICT,
-    UNIQUE (main_product_id, ingredient_product_id)
+                                               quantity_required NUMERIC(19, 6) NOT NULL,
+    unit_of_measure VARCHAR(20) NOT NULL,             -- NUEVO CAMPO
+
+    CONSTRAINT fk_recipe_main_product
+    FOREIGN KEY (main_product_id) REFERENCES products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_recipe_ingredient_product
+    FOREIGN KEY (ingredient_product_id) REFERENCES products (id) ON DELETE RESTRICT,
+
+    -- Evita duplicar el mismo ingrediente en la misma receta
+    UNIQUE (main_product_id, ingredient_product_id),
+
+    -- Validaciones básicas
+    CONSTRAINT chk_recipe_uom_allowed
+    CHECK (unit_of_measure IN ('UNIT','KG','G','L','ML','CM3','PERCENTAGE')),
+    CONSTRAINT chk_recipe_qty_positive
+    CHECK (quantity_required > 0),
+    -- Si es porcentaje, debe estar entre 0 y 1 (fracción)
+    CONSTRAINT chk_recipe_pct_range
+    CHECK (
+              unit_of_measure <> 'PERCENTAGE'
+              OR (quantity_required > 0 AND quantity_required <= 1)
+    )
     );
 
 CREATE TABLE IF NOT EXISTS product_packaging (

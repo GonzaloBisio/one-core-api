@@ -1,5 +1,6 @@
 package com.one.core.domain.model.tenant.product;
 
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,10 @@ public class ProductRecipe {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ingredient_product_id", nullable = false)
     private Product ingredientProduct;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "unit_of_measure", nullable = false, length = 20)
+    private UnitOfMeasure unitOfMeasure;
 
     @Column(name = "quantity_required", nullable = false, precision = 10, scale = 3)
     private BigDecimal quantityRequired;

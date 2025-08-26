@@ -1,5 +1,6 @@
 package com.one.core.application.dto.tenant.product;
 
+import com.one.core.domain.model.enums.UnitOfMeasure;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
@@ -18,4 +19,7 @@ public class ProductRecipeDTO {
     @NotNull(message = "Quantity is required")
     @Positive(message = "Quantity must be positive")
     private BigDecimal quantityRequired;
+
+    @NotNull(message = "Unit of measure is required")
+    private UnitOfMeasure unitOfMeasure;
 }
