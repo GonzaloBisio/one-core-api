@@ -57,6 +57,7 @@ public class ReportService {
 
     private static BigDecimal n(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
     private static String s(String v) { return (v != null && !v.isBlank()) ? v : "N/A"; }
+    private static BigDecimal nz(BigDecimal v) { return v != null ? v : BigDecimal.ZERO; }
 
 
     /**
@@ -179,44 +180,35 @@ public class ReportService {
     private List<SalesReportRow> mapSalesToReportRows(List<SalesOrder> sales) {
         if (sales == null || sales.isEmpty()) return Collections.emptyList();
 
-        return sales.stream()
-                .flatMap(order -> order.getItems().stream().map(item -> {
-                    BigDecimal qty       = n(item.getQuantity());
-                    BigDecimal unitPrice = n(item.getUnitPriceAtSale());
-                    BigDecimal totalSale = qty.multiply(unitPrice);
-
-                    String customer = order.getCustomer() != null ? s(order.getCustomer().getName()) : "N/A";
-                    String productName = (item.getProduct() != null) ? s(item.getProduct().getName()) : "N/A";
-
-                    BigDecimal itemCost = calculateSingleItemCost(item.getProduct());
-                    BigDecimal totalCost = itemCost.multiply(qty);
-                    BigDecimal profit = totalSale.subtract(totalCost);
-
-                    return new SalesReportRow(
-                            order.getOrderDate(), order.getId(), customer,
-                            productName, qty, unitPrice, totalSale, totalCost, profit
-                    );
-                }))
-                .collect(Collectors.toList());
+        return sales.stream().flatMap(order -> {
+            var items = order.getItems() != null ? order.getItems() : Collections.<com.one.core.domain.model.tenant.sales.SalesOrderItem>emptyList();
+            String customer = order.getCustomer() != null ? order.getCustomer().getName() : "N/A";
+            return items.stream().map(item -> {
+                BigDecimal qty       = nz(item.getQuantity());
+                BigDecimal unitPrice = nz(item.getUnitPriceAtSale());
+                BigDecimal totalSale = qty.multiply(unitPrice);
+                BigDecimal itemCost  = nz(calculateSingleItemCost(item.getProduct()));
+                BigDecimal totalCost = itemCost.multiply(qty);
+                BigDecimal profit    = totalSale.subtract(totalCost);
+                return new SalesReportRow(order.getOrderDate(), order.getId(), customer,
+                        item.getProduct().getName(), qty, unitPrice, totalSale, totalCost, profit);
+            });
+        }).collect(Collectors.toList());
     }
 
     private List<PurchaseReportRow> mapPurchasesToReportRows(List<PurchaseOrder> purchases) {
         if (purchases == null || purchases.isEmpty()) return Collections.emptyList();
 
-        return purchases.stream()
-                .flatMap(order -> order.getItems().stream().map(item -> {
-                    BigDecimal qty  = n(item.getQuantityOrdered());
-                    BigDecimal cost = n(item.getUnitPrice());
-
-                    String supplier = (order.getSupplier() != null) ? s(order.getSupplier().getName()) : "N/A";
-                    String productName = (item.getProduct() != null) ? s(item.getProduct().getName()) : "N/A";
-
-                    return new PurchaseReportRow(
-                            order.getOrderDate(), order.getId(), supplier,
-                            productName, qty, cost, qty.multiply(cost)
-                    );
-                }))
-                .collect(Collectors.toList());
+        return purchases.stream().flatMap(order -> {
+            var items = order.getItems() != null ? order.getItems() : Collections.<com.one.core.domain.model.tenant.purchases.PurchaseOrderItem>emptyList();
+            String supplier = order.getSupplier() != null ? order.getSupplier().getName() : "N/A";
+            return items.stream().map(item -> {
+                BigDecimal qty      = nz(item.getQuantityOrdered());
+                BigDecimal unitCost = nz(item.getUnitPrice());
+                return new PurchaseReportRow(order.getOrderDate(), order.getId(), supplier,
+                        item.getProduct().getName(), qty, unitCost, qty.multiply(unitCost));
+            });
+        }).collect(Collectors.toList());
     }
 
     private BigDecimal calculateCostOfGoodsSold(List<SalesOrder> sales) {
