@@ -27,4 +27,5 @@ public class SalesOrderDTO {
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
     private List<SalesOrderItemDTO> items;
+    private List<SalesOrderPackagingDTO> packaging;
 }
