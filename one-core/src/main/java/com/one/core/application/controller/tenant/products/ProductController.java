@@ -2,7 +2,6 @@ package com.one.core.application.controller.tenant.products;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.application.dto.tenant.product.ProductFilterDTO;
-import com.one.core.application.dto.tenant.product.ProductPackagingDTO;
 import com.one.core.application.dto.tenant.product.ProductRecipeDTO;
 import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.domain.service.tenant.product.ProductService;
@@ -124,17 +123,4 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 
-    @PutMapping("/{mainProductId}/packaging")
-    public ResponseEntity<List<ProductPackagingDTO>> setOrUpdatePackaging(
-            @PathVariable Long mainProductId,
-            @Valid @RequestBody List<ProductPackagingDTO> packagingItemsDTO) {
-        List<ProductPackagingDTO> updatedPackaging = productService.setOrUpdatePackaging(mainProductId, packagingItemsDTO);
-        return ResponseEntity.ok(updatedPackaging);
-    }
-
-    @GetMapping("/{mainProductId}/packaging")
-    public ResponseEntity<List<ProductPackagingDTO>> getPackaging(@PathVariable Long mainProductId) {
-        List<ProductPackagingDTO> packaging = productService.getPackagingForProduct(mainProductId);
-        return ResponseEntity.ok(packaging);
-    }
 }

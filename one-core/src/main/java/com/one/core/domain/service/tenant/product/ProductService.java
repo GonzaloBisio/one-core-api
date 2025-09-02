@@ -2,7 +2,6 @@ package com.one.core.domain.service.tenant.product;
 
 import com.one.core.application.dto.tenant.product.ProductDTO;
 import com.one.core.application.dto.tenant.product.ProductFilterDTO;
-import com.one.core.application.dto.tenant.product.ProductPackagingDTO;
 import com.one.core.application.dto.tenant.product.ProductRecipeDTO;
 import com.one.core.application.exception.DuplicateFieldException;
 import com.one.core.application.exception.ResourceNotFoundException;
@@ -15,11 +14,9 @@ import com.one.core.domain.model.enums.ProductType;
 import com.one.core.domain.model.enums.UnitOfMeasure;
 import com.one.core.domain.model.tenant.product.Product;
 import com.one.core.domain.model.tenant.product.ProductCategory;
-import com.one.core.domain.model.tenant.product.ProductPackaging;
 import com.one.core.domain.model.tenant.product.ProductRecipe;
 import com.one.core.domain.model.tenant.supplier.Supplier;
 import com.one.core.domain.repository.tenant.product.ProductCategoryRepository;
-import com.one.core.domain.repository.tenant.product.ProductPackagingRepository;
 import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.supplier.SupplierRepository;
@@ -55,7 +52,6 @@ public class ProductService {
     private final ProductRecipeRepository productRecipeRepository;
     private final ProductMapper productMapper;
     private final ProductUtils productUtils;
-    private final ProductPackagingRepository productPackagingRepository;
     private final AuthenticationFacade authenticationFacade;
     private final InventoryService inventoryService;
     private final UnitConversionService unitConversionService;
@@ -69,7 +65,6 @@ public class ProductService {
                           ProductRecipeRepository productRecipeRepository,
                           ProductMapper productMapper,
                           ProductUtils productUtils,
-                          ProductPackagingRepository productPackagingRepository,
                           AuthenticationFacade authenticationFacade,
                           InventoryService inventoryService,
                           UnitConversionService unitConversionService) {
@@ -79,7 +74,6 @@ public class ProductService {
         this.productRecipeRepository = productRecipeRepository;
         this.productMapper = productMapper;
         this.productUtils = productUtils;
-        this.productPackagingRepository = productPackagingRepository;
         this.authenticationFacade = authenticationFacade;
         this.inventoryService = inventoryService;
         this.unitConversionService = unitConversionService;
@@ -351,50 +345,6 @@ public class ProductService {
             throw new ResourceNotFoundException("Recipe Item", "id", recipeItemId);
         }
         productRecipeRepository.deleteById(recipeItemId);
-    }
-
-    @Transactional
-    public List<ProductPackagingDTO> setOrUpdatePackaging(Long mainProductId, List<ProductPackagingDTO> packagingItemsDTO) {
-        Product mainProduct = productRepository.findById(mainProductId)
-                .orElseThrow(() -> new ResourceNotFoundException("Main Product", "id", mainProductId));
-
-        List<ProductPackaging> oldPackaging = productPackagingRepository.findByMainProductId(mainProductId);
-        if (!oldPackaging.isEmpty()) {
-            productPackagingRepository.deleteAllInBatch(oldPackaging);
-        }
-
-        List<ProductPackaging> newPackagingItems = new ArrayList<>();
-        for (ProductPackagingDTO itemDTO : packagingItemsDTO) {
-            Product packagingProduct = productRepository.findById(itemDTO.getPackagingProductId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Packaging Product", "id", itemDTO.getPackagingProductId()));
-
-            if (packagingProduct.getProductType() != ProductType.PACKAGING) {
-                throw new ValidationException("Packaging items must be products of type PACKAGING.");
-            }
-
-
-            ProductPackaging packagingItem = new ProductPackaging();
-            packagingItem.setMainProduct(mainProduct);
-            packagingItem.setPackagingProduct(packagingProduct);
-            packagingItem.setQuantity(itemDTO.getQuantity());
-            newPackagingItems.add(packagingItem);
-        }
-
-        productPackagingRepository.saveAll(newPackagingItems);
-        return getPackagingForProduct(mainProductId);
-    }
-
-    @Transactional(readOnly = true)
-    public List<ProductPackagingDTO> getPackagingForProduct(Long mainProductId) {
-        return productPackagingRepository.findByMainProductId(mainProductId).stream()
-                .map(item -> {
-                    ProductPackagingDTO dto = new ProductPackagingDTO();
-                    dto.setId(item.getId());
-                    dto.setPackagingProductId(item.getPackagingProduct().getId());
-                    dto.setPackagingProductName(item.getPackagingProduct().getName());
-                    dto.setQuantity(item.getQuantity());
-                    return dto;
-                }).collect(Collectors.toList());
     }
 
 }

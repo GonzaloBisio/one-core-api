@@ -4,6 +4,8 @@ import com.one.core.application.dto.tenant.response.PageableResponse;
 import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderFilterDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderRequestDTO;
+import com.one.core.application.dto.tenant.sales.SalesOrderPackagingDTO;
+import com.one.core.application.dto.tenant.sales.SalesOrderPackagingRequestDTO;
 import com.one.core.application.security.UserPrincipal;
 import com.one.core.domain.service.tenant.sales.SalesOrderService;
 import jakarta.validation.Valid;
@@ -82,6 +84,28 @@ public class SalesOrderController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
         SalesOrderDTO cancelledOrder = salesOrderService.cancelOrder(id, currentUser);
         return ResponseEntity.ok(cancelledOrder);
+    }
+
+    @PostMapping("/{id}/packaging")
+    public ResponseEntity<List<SalesOrderPackagingDTO>> addPackaging(
+            @PathVariable Long id,
+            @Valid @RequestBody List<SalesOrderPackagingRequestDTO> packaging) {
+        List<SalesOrderPackagingDTO> result = salesOrderService.setPackaging(id, packaging);
+        return new ResponseEntity<>(result, HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}/packaging")
+    public ResponseEntity<List<SalesOrderPackagingDTO>> updatePackaging(
+            @PathVariable Long id,
+            @Valid @RequestBody List<SalesOrderPackagingRequestDTO> packaging) {
+        List<SalesOrderPackagingDTO> result = salesOrderService.setPackaging(id, packaging);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{id}/packaging")
+    public ResponseEntity<List<SalesOrderPackagingDTO>> getPackaging(@PathVariable Long id) {
+        List<SalesOrderPackagingDTO> packaging = salesOrderService.getPackaging(id);
+        return ResponseEntity.ok(packaging);
     }
 
 }

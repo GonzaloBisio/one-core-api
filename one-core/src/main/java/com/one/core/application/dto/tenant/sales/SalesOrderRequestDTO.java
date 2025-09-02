@@ -9,6 +9,7 @@ import java.util.List;
 public class SalesOrderRequestDTO {
     private Long customerId;
     @NotEmpty private List<@Valid SalesOrderItemRequestDTO> items;
+    private List<@Valid SalesOrderPackagingRequestDTO> packaging;
     private String paymentMethod;
     private String shippingAddress;
     private String notes;

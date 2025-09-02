@@ -3,8 +3,11 @@ package com.one.core.application.mapper.sales;
 import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderItemDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderItemRequestDTO;
+import com.one.core.application.dto.tenant.sales.SalesOrderPackagingDTO;
+import com.one.core.application.dto.tenant.sales.SalesOrderPackagingRequestDTO;
 import com.one.core.domain.model.tenant.sales.SalesOrder;
 import com.one.core.domain.model.tenant.sales.SalesOrderItem;
+import com.one.core.domain.model.tenant.sales.SalesOrderPackaging;
 import com.one.core.domain.model.tenant.product.Product; // Para referencia al crear SalesOrderItem
 import org.springframework.stereotype.Component;
 
@@ -56,6 +59,9 @@ public class SalesOrderMapper {
         dto.setItems(entity.getItems() != null ?
                 entity.getItems().stream().map(this::toDTO).collect(Collectors.toList()) :
                 Collections.emptyList());
+        dto.setPackaging(entity.getPackagingItems() != null ?
+                entity.getPackagingItems().stream().map(this::toDTO).collect(Collectors.toList()) :
+                Collections.emptyList());
         return dto;
     }
 
@@ -68,5 +74,24 @@ public class SalesOrderMapper {
         item.setDiscountPerItem(itemDto.getDiscountPerItem() != null ? itemDto.getDiscountPerItem() : BigDecimal.ZERO);
         // El subtotal se calcula o se deja que la BD lo haga si es generated column
         return item;
+    }
+
+    public SalesOrderPackaging toEntity(SalesOrderPackagingRequestDTO dto, Product product) {
+        SalesOrderPackaging packaging = new SalesOrderPackaging();
+        packaging.setProduct(product);
+        packaging.setQuantity(dto.getQuantity());
+        return packaging;
+    }
+
+    public SalesOrderPackagingDTO toDTO(SalesOrderPackaging entity) {
+        if (entity == null) return null;
+        SalesOrderPackagingDTO dto = new SalesOrderPackagingDTO();
+        dto.setId(entity.getId());
+        if (entity.getProduct() != null) {
+            dto.setProductId(entity.getProduct().getId());
+            dto.setProductName(entity.getProduct().getName());
+        }
+        dto.setQuantity(entity.getQuantity());
+        return dto;
     }
 }
