@@ -309,8 +309,8 @@ public class ProductService {
                         || dto.getQuantityRequired().compareTo(BigDecimal.ONE) > 0) {
                     throw new ValidationException("Para PERCENTAGE use valores entre 0 y 1 (p.ej., 0.90 = 90%).");
                 }
-            } else {
-                // Si no es porcentaje, la magnitud debe coincidir con la del ingrediente
+            } else if (uom != UnitOfMeasure.UNIT) {
+                // Si no es porcentaje ni UNIT, la magnitud debe coincidir con la del ingrediente
                 if (uom.getMagnitude() != ingredient.getUnitOfMeasure().getMagnitude()) {
                     throw new ValidationException(
                             "La unidad de la línea (" + uom + ") no es compatible con el ingrediente (" + ingredient.getUnitOfMeasure() + ")."
