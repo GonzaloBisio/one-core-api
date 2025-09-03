@@ -21,8 +21,8 @@ import java.util.List;
 @Entity
 @Table(name = "sales_orders")
 @Data
-@EqualsAndHashCode(exclude = {"items", "packagingItems", "customer", "createdByUser"}) // Evitar problemas con Lombok y relaciones
-@ToString(exclude = {"items", "packagingItems", "customer", "createdByUser"})
+@EqualsAndHashCode(exclude = {"items", "customer", "createdByUser"}) // Evitar problemas con Lombok y relaciones
+@ToString(exclude = {"items", "customer", "createdByUser"})
 @EntityListeners(org.springframework.data.jpa.domain.support.AuditingEntityListener.class)
 public class SalesOrder {
 
@@ -73,9 +73,6 @@ public class SalesOrder {
 
     @OneToMany(mappedBy = "salesOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<SalesOrderItem> items = new ArrayList<>();
-
-    @OneToMany(mappedBy = "salesOrder", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<SalesOrderPackaging> packagingItems = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
