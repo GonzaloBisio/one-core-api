@@ -2,7 +2,9 @@ package com.one.core.application.controller.reports;
 
 import com.one.core.application.dto.reports.OperationalReportJsonDTO;
 import com.one.core.application.dto.reports.ReportFilterDTO;
+import org.springdoc.core.annotations.ParameterObject;
 import com.one.core.domain.service.reports.ReportService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
@@ -63,7 +65,7 @@ public class ReportController {
     public ResponseEntity<OperationalReportJsonDTO> getOperationalSummaryJson(
             @RequestParam @Pattern(regexp = "DAILY|WEEKLY|MONTHLY", message = "El tipo de reporte debe ser DAILY, WEEKLY, o MONTHLY") String type,
             @RequestParam("date") String dateString,
-            ReportFilterDTO filter, // Spring mapea los query params a los campos del DTO
+            @ParameterObject @Valid ReportFilterDTO filter, // Spring mapea los query params a los campos del DTO
             @PageableDefault(size = 10, sort = "orderDate", direction = Sort.Direction.DESC) Pageable pageable) {
 
         LocalDate date = LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE);

@@ -1,6 +1,7 @@
 package com.one.core.domain.model.tenant.sales;
 
 import com.one.core.domain.model.admin.SystemUser;
+import com.one.core.domain.model.enums.sales.PaymentMethod;
 import com.one.core.domain.model.enums.sales.SalesOrderStatus;
 import com.one.core.domain.model.tenant.customer.Customer;
 import jakarta.persistence.*;
@@ -57,8 +58,9 @@ public class SalesOrder {
     @ColumnDefault("0.00")
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "payment_method", length = 50)
-    private String paymentMethod;
+    private PaymentMethod paymentMethod;
 
     @Column(name = "shipping_address", columnDefinition = "TEXT")
     private String shippingAddress;
