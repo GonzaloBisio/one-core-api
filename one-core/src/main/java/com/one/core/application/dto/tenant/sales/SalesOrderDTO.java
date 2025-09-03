@@ -1,5 +1,6 @@
 package com.one.core.application.dto.tenant.sales;
 
+import com.one.core.domain.model.enums.sales.PaymentMethod;
 import com.one.core.domain.model.enums.sales.SalesOrderStatus;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -19,7 +20,7 @@ public class SalesOrderDTO {
     private BigDecimal taxAmount;
     private BigDecimal discountAmount;
     private BigDecimal totalAmount;
-    private String paymentMethod;
+    private PaymentMethod paymentMethod;
     private String shippingAddress;
     private String notes;
     private Long createdByUserId;

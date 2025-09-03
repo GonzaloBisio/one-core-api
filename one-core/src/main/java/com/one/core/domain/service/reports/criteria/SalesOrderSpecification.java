@@ -4,7 +4,6 @@ import com.one.core.application.dto.reports.ReportFilterDTO;
 import com.one.core.domain.model.tenant.sales.SalesOrder;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,7 +17,7 @@ public class SalesOrderSpecification {
             }
 
             // Filtrar por método de pago
-            if (StringUtils.hasText(filter.getPaymentMethod())) {
+            if (filter.getPaymentMethod() != null) {
                 predicates.add(criteriaBuilder.equal(root.get("paymentMethod"), filter.getPaymentMethod()));
             }
 
