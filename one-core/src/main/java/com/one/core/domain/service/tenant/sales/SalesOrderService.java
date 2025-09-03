@@ -4,8 +4,6 @@ import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderFilterDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderRequestDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderItemRequestDTO;
-import com.one.core.application.dto.tenant.sales.SalesOrderPackagingRequestDTO;
-import com.one.core.application.dto.tenant.sales.SalesOrderPackagingDTO;
 import com.one.core.application.exception.ResourceNotFoundException;
 import com.one.core.application.exception.ValidationException;
 import com.one.core.application.mapper.sales.SalesOrderMapper;
@@ -16,16 +14,16 @@ import com.one.core.domain.model.enums.movements.MovementType;
 import com.one.core.domain.model.enums.sales.SalesOrderStatus;
 import com.one.core.domain.model.tenant.customer.Customer;
 import com.one.core.domain.model.tenant.product.Product;
+import com.one.core.domain.model.tenant.product.ProductPackaging;
 import com.one.core.domain.model.tenant.product.ProductRecipe;
-import com.one.core.domain.model.tenant.sales.SalesOrderPackaging;
 import com.one.core.domain.model.tenant.sales.SalesOrder;
 import com.one.core.domain.model.tenant.sales.SalesOrderItem;
 import com.one.core.domain.repository.admin.SystemUserRepository;
 import com.one.core.domain.repository.tenant.customer.CustomerRepository;
+import com.one.core.domain.repository.tenant.product.ProductPackagingRepository;
 import com.one.core.domain.repository.tenant.product.ProductRecipeRepository;
 import com.one.core.domain.repository.tenant.product.ProductRepository;
 import com.one.core.domain.repository.tenant.sales.SalesOrderRepository;
-import com.one.core.domain.repository.tenant.sales.SalesOrderPackagingRepository;
 import com.one.core.domain.service.tenant.inventory.InventoryService;
 import com.one.core.domain.service.tenant.sales.criteria.SalesOrderSpecification;
 import com.one.core.domain.service.common.UnitConversionService;
@@ -56,7 +54,7 @@ public class SalesOrderService {
     private final InventoryService inventoryService;
     private final SystemUserRepository systemUserRepository;
     private final ProductRecipeRepository productRecipeRepository;
-    private final SalesOrderPackagingRepository salesOrderPackagingRepository;
+    private final ProductPackagingRepository productPackagingRepository;
     private final UnitConversionService unitConversionService;
 
 
@@ -68,7 +66,7 @@ public class SalesOrderService {
                              InventoryService inventoryService,
                              SystemUserRepository systemUserRepository,
                              ProductRecipeRepository productRecipeRepository,
-                             SalesOrderPackagingRepository salesOrderPackagingRepository,
+                             ProductPackagingRepository productPackagingRepository,
                              UnitConversionService unitConversionService) {
         this.salesOrderRepository = salesOrderRepository;
         this.productRepository = productRepository;
@@ -77,7 +75,7 @@ public class SalesOrderService {
         this.inventoryService = inventoryService;
         this.productRecipeRepository = productRecipeRepository;
         this.systemUserRepository = systemUserRepository;
-        this.salesOrderPackagingRepository = salesOrderPackagingRepository;
+        this.productPackagingRepository = productPackagingRepository;
         this.unitConversionService = unitConversionService;
     }
 
@@ -127,21 +125,6 @@ public class SalesOrderService {
             items.add(orderItem);
         }
         order.setItems(items);
-
-        if (requestDTO.getPackaging() != null) {
-            List<SalesOrderPackaging> packagingList = new ArrayList<>();
-            for (SalesOrderPackagingRequestDTO packDto : requestDTO.getPackaging()) {
-                Product packagingProduct = productRepository.findById(packDto.getProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Packaging Product", "id", packDto.getProductId()));
-                if (packagingProduct.getProductType() != ProductType.PACKAGING) {
-                    throw new ValidationException("Packaging items must be products of type PACKAGING.");
-                }
-                SalesOrderPackaging packaging = salesOrderMapper.toEntity(packDto, packagingProduct);
-                packaging.setSalesOrder(order);
-                packagingList.add(packaging);
-            }
-            order.setPackagingItems(packagingList);
-        }
         order.recalculateTotals();
 
         if (!hasPhysicalGoods) {
@@ -209,12 +192,15 @@ public class SalesOrderService {
                     throw new ValidationException("Insufficient stock for product: " + productSold.getName());
                 }
             }
-        }
 
-        for (SalesOrderPackaging packaging : order.getPackagingItems()) {
-            BigDecimal requiredBase = unitConversionService.toBaseUnit(packaging.getQuantity(), packaging.getProduct().getUnitOfMeasure());
-            if (!inventoryService.isStockAvailable(packaging.getProduct().getId(), requiredBase)) {
-                throw new ValidationException("Insufficient stock for packaging: " + packaging.getProduct().getName());
+            // La validación de packaging no cambia.
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packaging : packagingItems) {
+                BigDecimal requiredQuantity = packaging.getQuantity().multiply(item.getQuantity());
+                BigDecimal requiredBase = unitConversionService.toBaseUnit(requiredQuantity, packaging.getPackagingProduct().getUnitOfMeasure());
+                if (!inventoryService.isStockAvailable(packaging.getPackagingProduct().getId(), requiredBase)) {
+                    throw new ValidationException("Insufficient stock for packaging: " + packaging.getPackagingProduct().getName());
+                }
             }
         }
     }
@@ -231,11 +217,14 @@ public class SalesOrderService {
                         "SALES_ORDER", order.getId().toString(), userId, "Sale for order ID: " + order.getId()
                 );
             }
-        }
 
-        for (SalesOrderPackaging packagingItem : order.getPackagingItems()) {
-            BigDecimal consumeBase = unitConversionService.toBaseUnit(packagingItem.getQuantity(), packagingItem.getProduct().getUnitOfMeasure());
-            inventoryService.processOutgoingStock(packagingItem.getProduct().getId(), consumeBase, MovementType.PACKAGING_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Packaging for order: " + order.getId());
+            // La lógica de descuento de packaging no cambia.
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packagingItem : packagingItems) {
+                BigDecimal quantityToConsume = packagingItem.getQuantity().multiply(item.getQuantity());
+                BigDecimal consumeBase = unitConversionService.toBaseUnit(quantityToConsume, packagingItem.getPackagingProduct().getUnitOfMeasure());
+                inventoryService.processOutgoingStock(packagingItem.getPackagingProduct().getId(), consumeBase, MovementType.PACKAGING_CONSUMPTION, "SALES_ORDER", order.getId().toString(), userId, "Packaging for product: " + productSold.getName());
+            }
         }
     }
 
@@ -251,40 +240,15 @@ public class SalesOrderService {
                         "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Stock returned for cancelled order ID: " + order.getId()
                 );
             }
-        }
 
-        for (SalesOrderPackaging packagingItem : order.getPackagingItems()) {
-            BigDecimal returnBase = unitConversionService.toBaseUnit(packagingItem.getQuantity(), packagingItem.getProduct().getUnitOfMeasure());
-            inventoryService.processIncomingStock(packagingItem.getProduct().getId(), returnBase, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Packaging stock returned for order: " + order.getId());
-        }
-    }
-
-    @Transactional
-    public List<SalesOrderPackagingDTO> setPackaging(Long orderId, List<SalesOrderPackagingRequestDTO> packagingItems) {
-        SalesOrder order = salesOrderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("SalesOrder", "id", orderId));
-        order.getPackagingItems().clear();
-        if (packagingItems != null) {
-            for (SalesOrderPackagingRequestDTO packDto : packagingItems) {
-                Product packagingProduct = productRepository.findById(packDto.getProductId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product", "id", packDto.getProductId()));
-                if (packagingProduct.getProductType() != ProductType.PACKAGING) {
-                    throw new ValidationException("Packaging items must be products of type PACKAGING.");
-                }
-                SalesOrderPackaging packaging = salesOrderMapper.toEntity(packDto, packagingProduct);
-                packaging.setSalesOrder(order);
-                order.getPackagingItems().add(packaging);
+            // La lógica de devolución de packaging no cambia.
+            List<ProductPackaging> packagingItems = productPackagingRepository.findByMainProductId(productSold.getId());
+            for (ProductPackaging packagingItem : packagingItems) {
+                BigDecimal quantityToReturn = packagingItem.getQuantity().multiply(item.getQuantity());
+                BigDecimal returnBase = unitConversionService.toBaseUnit(quantityToReturn, packagingItem.getPackagingProduct().getUnitOfMeasure());
+                inventoryService.processIncomingStock(packagingItem.getPackagingProduct().getId(), returnBase, MovementType.SALE_CANCELLED, "SALES_ORDER_CANCEL", order.getId().toString(), userId, "Packaging stock returned for product: " + productSold.getName());
             }
         }
-        SalesOrder saved = salesOrderRepository.save(order);
-        return saved.getPackagingItems().stream().map(salesOrderMapper::toDTO).collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<SalesOrderPackagingDTO> getPackaging(Long orderId) {
-        return salesOrderPackagingRepository.findBySalesOrderId(orderId).stream()
-                .map(salesOrderMapper::toDTO)
-                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
