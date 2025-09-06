@@ -22,7 +22,7 @@ import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/inventory")
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
+@PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
 public class InventoryController {
 
     private final InventoryService inventoryService;
@@ -33,7 +33,7 @@ public class InventoryController {
     }
 
     @PostMapping("/adjustments")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'INVENTORY_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<StockMovementDTO> performManualAdjustment(
             @Valid @RequestBody StockAdjustmentRequestDTO adjustmentDTO,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -42,7 +42,7 @@ public class InventoryController {
     }
 
     @GetMapping("/movements")
-    @PreAuthorize("hasAnyRole('TENANT_USER', 'TENANT_ADMIN', 'INVENTORY_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<PageableResponse<StockMovementDTO>> getStockMovements(
             StockMovementFilterDTO filterDTO,
             @PageableDefault(size = 10, sort = "movementDate", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -52,14 +52,14 @@ public class InventoryController {
     }
 
     @GetMapping("/products/{productId}/stock")
-    @PreAuthorize("hasAnyRole('TENANT_USER', 'TENANT_ADMIN', 'INVENTORY_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<BigDecimal> getCurrentStock(@PathVariable Long productId) {
         BigDecimal currentStock = inventoryService.getCurrentStock(productId);
         return ResponseEntity.ok(currentStock);
     }
 
     @GetMapping("/products/{productId}/is-available")
-    @PreAuthorize("hasAnyRole('TENANT_USER', 'TENANT_ADMIN', 'INVENTORY_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<Boolean> isStockAvailable(
             @PathVariable Long productId,
             @RequestParam BigDecimal quantityNeeded) {
@@ -68,6 +68,7 @@ public class InventoryController {
     }
 
     @PostMapping("/stock/freeze")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<Void> freezeStock(
             @Valid @RequestBody StockTransferRequestDTO request,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -78,6 +79,7 @@ public class InventoryController {
     }
 
     @PostMapping("/stock/thaw")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<Void> thawStock(
             @Valid @RequestBody StockTransferRequestDTO request,
             @AuthenticationPrincipal UserPrincipal currentUser) {

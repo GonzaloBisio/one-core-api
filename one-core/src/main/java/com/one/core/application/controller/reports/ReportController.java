@@ -39,6 +39,7 @@ public class ReportController {
     }
 
     @GetMapping("/operational-summary")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<InputStreamResource> getOperationalSummaryReport(
             @RequestParam @Pattern(regexp = "DAILY|WEEKLY|MONTHLY", message = "El tipo de reporte debe ser DAILY, WEEKLY, o MONTHLY") String type,
             @RequestParam("date") String dateString) {
@@ -62,6 +63,7 @@ public class ReportController {
     }
 
     @GetMapping("/operational-summary/json")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<OperationalReportJsonDTO> getOperationalSummaryJson(
             @RequestParam @Pattern(regexp = "DAILY|WEEKLY|MONTHLY", message = "El tipo de reporte debe ser DAILY, WEEKLY, o MONTHLY") String type,
             @RequestParam("date") String dateString,

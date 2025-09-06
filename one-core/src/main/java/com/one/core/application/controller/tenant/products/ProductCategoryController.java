@@ -41,18 +41,21 @@ public class ProductCategoryController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductCategoryDTO> createCategory(@Valid @RequestBody ProductCategoryDTO categoryDTO) {
         ProductCategoryDTO createdCategory = categoryService.createCategory(categoryDTO);
         return new ResponseEntity<>(createdCategory, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductCategoryDTO> updateCategory(@PathVariable Long id, @Valid @RequestBody ProductCategoryDTO categoryDTO) {
         ProductCategoryDTO updatedCategory = categoryService.updateCategory(id, categoryDTO);
         return ResponseEntity.ok(updatedCategory);
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<Void> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return ResponseEntity.noContent().build();

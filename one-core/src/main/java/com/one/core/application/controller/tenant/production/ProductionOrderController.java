@@ -21,7 +21,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/production-orders")
-@PreAuthorize("hasAnyRole('TENANT_ADMIN', 'PRODUCTION_MANAGER', 'SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('TENANT_ADMIN','PRODUCTION_MANAGER','SUPER_ADMIN')")
 public class ProductionOrderController {
 
     private final ProductionOrderService productionOrderService;
@@ -32,6 +32,7 @@ public class ProductionOrderController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','PRODUCTION_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<ProductionOrderDTO> createProductionOrder(
             @Valid @RequestBody ProductionOrderRequestDTO requestDTO,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -42,12 +43,11 @@ public class ProductionOrderController {
 
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','PRODUCTION_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<PageableResponse<ProductionOrderDTO>> getAllProductionOrders(
-            // ProductionOrderFilterDTO filterDTO, // Podrías crear un DTO para filtros
             @PageableDefault(size = 20, sort = "productionDate", direction = Sort.Direction.DESC) Pageable pageable
     ) {
         Page<ProductionOrderDTO> orderPage = productionOrderService.getAllProductionOrders(pageable);
         return ResponseEntity.ok(new PageableResponse<>(orderPage));
     }
-    // Aquí podrías añadir endpoints GET para listar/ver órdenes de producción
 }

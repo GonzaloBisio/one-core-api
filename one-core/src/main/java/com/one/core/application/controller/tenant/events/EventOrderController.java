@@ -21,7 +21,7 @@ import com.one.core.application.dto.tenant.response.PageableResponse;
 
 @RestController
 @RequestMapping("/event-orders")
-@PreAuthorize("hasAnyRole('TENANT_ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN')") // Define los roles adecuados
+@PreAuthorize("hasAnyRole('TENANT_ADMIN','SALES_MANAGER','SUPER_ADMIN')")
 public class EventOrderController {
 
     private final EventOrderService eventOrderService;
@@ -48,6 +48,7 @@ public class EventOrderController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SALES_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<PageableResponse<EventOrderDTO>> getAllEventOrders(
             EventOrderFilterDTO filter,
             @PageableDefault(size = 20, sort = "eventDate", direction = Sort.Direction.ASC) Pageable pageable) {
@@ -57,6 +58,7 @@ public class EventOrderController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SALES_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<EventOrderDTO> getEventOrderById(@PathVariable Long id) {
         EventOrderDTO eventOrder = eventOrderService.getEventOrderById(id);
         return ResponseEntity.ok(eventOrder);

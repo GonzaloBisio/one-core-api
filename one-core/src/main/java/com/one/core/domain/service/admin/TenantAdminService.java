@@ -1,6 +1,7 @@
 package com.one.core.domain.service.admin;
 
 import com.one.core.application.dto.admin.TenantCreationRequestDTO;
+import com.one.core.application.dto.admin.TenantUserCreateRequestDTO;
 import com.one.core.application.exception.DuplicateFieldException;
 import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.admin.Tenant;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Service
 public class TenantAdminService {
@@ -100,5 +102,30 @@ public class TenantAdminService {
 
         // Ejecutar Flyway con las carpetas seleccionadas
         flywayTenantMigrationService.migrateTenantSchema(schemaName, migrationLocations.toArray(new String[0]));
+    }
+
+    @Transactional
+    public SystemUser createTenantUser(TenantUserCreateRequestDTO dto) {
+        Tenant tenant = tenantRepository.findBySchemaName(dto.getSchemaName())
+                .orElseThrow(() -> new NoSuchElementException("Tenant not found: " + dto.getSchemaName()));
+
+        if (systemUserRepository.existsByUsername(dto.getUsername())) {
+            throw new DuplicateFieldException("Username", dto.getUsername());
+        }
+        if (dto.getEmail() != null && systemUserRepository.existsByEmail(dto.getEmail())) {
+            throw new DuplicateFieldException("Email", dto.getEmail());
+        }
+
+        SystemUser user = new SystemUser();
+        user.setUsername(dto.getUsername());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setEmail(dto.getEmail());
+        user.setName(dto.getName());
+        user.setLastName(dto.getLastName());
+        user.setActivo(dto.getActivo() != null ? dto.getActivo() : true);
+        user.setSystemRole(SystemRole.TENANT_USER);
+        user.setTenant(tenant);
+
+        return systemUserRepository.save(user);
     }
 }

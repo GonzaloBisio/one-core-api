@@ -35,6 +35,7 @@ public class ProductController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<PageableResponse<ProductDTO>> getAllProducts(
             ProductFilterDTO filterDTO,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)
@@ -49,6 +50,7 @@ public class ProductController {
             description = "Devuelve todos los productos de tipo PACKAGING. Por defecto solo activos."
     )
     @GetMapping("/packaging/available")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductDTO>> getAllPackaging(
             @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
         return ResponseEntity.ok(productService.getAllPackaging(activeOnly));
@@ -59,6 +61,7 @@ public class ProductController {
             description = "Devuelve todos los productos de tipo PHYSICAL_GOOD. Por defecto solo activos."
     )
     @GetMapping("/physicalgood/available")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductDTO>> getAllPhysicalGoods(
             @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
         return ResponseEntity.ok(productService.getAllPhysicalGoods(activeOnly));
@@ -69,6 +72,7 @@ public class ProductController {
             description = "Devuelve todos los productos de tipo PHYSICAL_GOOD. Por defecto solo activos."
     )
     @GetMapping("/compound/available")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductDTO>> getAllCompound(
             @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
         return ResponseEntity.ok(productService.getAllCompound(activeOnly));
@@ -76,17 +80,20 @@ public class ProductController {
 
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductDTO> getProductById(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getProductById(id));
     }
 
     @GetMapping("/sku/{sku}")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductDTO> getProductBySku(@PathVariable String sku) {
         return ResponseEntity.ok(productService.getProductBySku(sku));
     }
 
     @Operation(summary = "Create product", description = "Quantities are stored in base units (grams, milliliters, units) and normalized automatically.")
     @PostMapping
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductDTO> createProduct(@Valid @RequestBody ProductDTO productDTO) {
         ProductDTO createdProduct = productService.createProduct(productDTO);
         return new ResponseEntity<>(createdProduct, HttpStatus.CREATED);
@@ -94,17 +101,20 @@ public class ProductController {
 
     @Operation(summary = "Update product", description = "Quantities are stored in base units (grams, milliliters, units) and normalized automatically.")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<ProductDTO> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDTO productDTO) {
         return ResponseEntity.ok(productService.updateProduct(id, productDTO));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deactivateProduct(id);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{mainProductId}/recipe")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductRecipeDTO>> setOrUpdateRecipe(
             @PathVariable Long mainProductId,
             @Valid @RequestBody List<ProductRecipeDTO> recipeItems) {
@@ -113,18 +123,21 @@ public class ProductController {
     }
 
     @GetMapping("/{mainProductId}/recipe-items")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductRecipeDTO>> getRecipeItems(@PathVariable Long mainProductId) {
         List<ProductRecipeDTO> recipe = productService.getRecipeItems(mainProductId);
         return ResponseEntity.ok(recipe);
     }
 
     @DeleteMapping("/recipe-items/{recipeItemId}")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<Void> removeRecipeItem(@PathVariable Long recipeItemId) {
         productService.removeRecipeItem(recipeItemId);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{mainProductId}/packaging")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductPackagingDTO>> setOrUpdatePackaging(
             @PathVariable Long mainProductId,
             @Valid @RequestBody List<ProductPackagingDTO> packagingItemsDTO) {
@@ -133,6 +146,7 @@ public class ProductController {
     }
 
     @GetMapping("/{mainProductId}/packaging")
+    @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<List<ProductPackagingDTO>> getPackaging(@PathVariable Long mainProductId) {
         List<ProductPackagingDTO> packaging = productService.getPackagingForProduct(mainProductId);
         return ResponseEntity.ok(packaging);

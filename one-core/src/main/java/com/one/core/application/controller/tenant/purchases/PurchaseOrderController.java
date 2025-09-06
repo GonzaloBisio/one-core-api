@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/purchase-orders")
-@PreAuthorize("hasAnyRole('TENANT_USER', 'TENANT_ADMIN', 'PURCHASING_MANAGER', 'SUPER_ADMIN')")
+@PreAuthorize("hasAnyRole('TENANT_ADMIN','PURCHASING_MANAGER','SUPER_ADMIN')")
 public class PurchaseOrderController {
 
     private final PurchaseOrderService purchaseOrderService;

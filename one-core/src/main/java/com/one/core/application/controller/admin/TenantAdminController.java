@@ -2,6 +2,8 @@
 package com.one.core.application.controller.admin;
 
 import com.one.core.application.dto.admin.TenantCreationRequestDTO;
+import com.one.core.application.dto.admin.TenantUserCreateRequestDTO;
+import com.one.core.domain.model.admin.SystemUser;
 import com.one.core.domain.model.admin.Tenant;
 import com.one.core.domain.service.admin.TenantAdminService;
 import jakarta.validation.Valid;
@@ -42,5 +44,12 @@ public class TenantAdminController {
 
         logger.info("Successfully created and provisioned new tenant: {}", newTenant.getCompanyName());
         return new ResponseEntity<>(newTenant, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/users")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','TENANT_ADMIN')")
+    public ResponseEntity<SystemUser> createTenantUser(@Valid @RequestBody TenantUserCreateRequestDTO dto) {
+        SystemUser created = tenantAdminService.createTenantUser(dto);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 }

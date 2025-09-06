@@ -29,7 +29,7 @@ import java.util.Arrays;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true)
+@EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
 public class SecurityConfig {
 
     @Autowired
@@ -52,7 +52,16 @@ public class SecurityConfig {
     @Bean
     public RoleHierarchy roleHierarchy() {
         RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
-        String hierarchy = "ROLE_SUPER_ADMIN > ROLE_TENANT_USER";
+        String hierarchy = String.join("\n",
+                "ROLE_SUPER_ADMIN > ROLE_TENANT_ADMIN",
+                "ROLE_TENANT_ADMIN > ROLE_TENANT_USER",
+                "ROLE_SUPER_ADMIN > ROLE_PURCHASING_MANAGER",
+                "ROLE_SUPER_ADMIN > ROLE_INVENTORY_MANAGER",
+                "ROLE_SUPER_ADMIN > ROLE_SALES_MANAGER",
+                "ROLE_SUPER_ADMIN > ROLE_SALES_PERSON",
+                "ROLE_SUPER_ADMIN > ROLE_WAREHOUSE_STAFF",
+                "ROLE_SUPER_ADMIN > ROLE_PRODUCTION_MANAGER"
+        );
         roleHierarchy.setHierarchy(hierarchy);
         return roleHierarchy;
     }
@@ -80,10 +89,33 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/auth/**", "/actuator/**", "/swagger-ui/**", "/v3/api-docs/**", "/error").permitAll()
+
+                        // --- HARDENING POR PATHS ---
+                        // Purchase Orders: bloquear TENANT_USER (tanto GET como POST/PUT/etc)
+                        .requestMatchers("/purchase-orders/**")
+                        .hasAnyRole("TENANT_ADMIN","PURCHASING_MANAGER","SUPER_ADMIN")
+
+                        // Reports: lectura para TENANT_USER
+                        .requestMatchers(HttpMethod.GET, "/api/reports/**")
+                        .hasAnyRole("TENANT_USER","TENANT_ADMIN","SUPER_ADMIN")
+
+                        // Productos / Categorías: GET para TENANT_USER, escritura solo admins
+                        .requestMatchers(HttpMethod.GET, "/products/**", "/product-categories/**")
+                        .hasAnyRole("TENANT_USER","TENANT_ADMIN","SUPER_ADMIN")
+                        .requestMatchers("/products/**", "/product-categories/**")
+                        .hasAnyRole("TENANT_ADMIN","SUPER_ADMIN")
+
+                        // Inventario: solo lectura para TENANT_USER
+                        .requestMatchers(HttpMethod.GET, "/inventory/**")
+                        .hasAnyRole("TENANT_USER","TENANT_ADMIN","INVENTORY_MANAGER","SUPER_ADMIN")
+                        .requestMatchers("/inventory/**")
+                        .hasAnyRole("TENANT_ADMIN","INVENTORY_MANAGER","SUPER_ADMIN")
+
+                        // Ventas / Producción: GET visibles para TENANT_USER (ajustá si querés)
+                        .requestMatchers(HttpMethod.GET, "/sales-orders/**", "/production-orders/**", "/event-orders/**")
+                        .hasAnyRole("TENANT_USER","TENANT_ADMIN","SUPER_ADMIN")
+
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

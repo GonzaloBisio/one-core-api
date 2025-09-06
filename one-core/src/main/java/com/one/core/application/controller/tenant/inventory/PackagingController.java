@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/packaging")
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
+@PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
 public class PackagingController {
 
     private final PackagingService packagingService;
@@ -27,7 +27,7 @@ public class PackagingController {
     }
 
     @PostMapping("/consume")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'INVENTORY_MANAGER', 'SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','INVENTORY_MANAGER','SUPER_ADMIN')")
     public ResponseEntity<StockMovementDTO> consumePackaging(
             @Valid @RequestBody PackagingConsumptionRequestDTO request,
             @AuthenticationPrincipal UserPrincipal currentUser) {

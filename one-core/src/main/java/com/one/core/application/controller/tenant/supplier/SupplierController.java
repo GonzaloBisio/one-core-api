@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/suppliers")
-@PreAuthorize("hasRole('TENANT_USER') or hasRole('SUPER_ADMIN') or hasRole('TENANT_ADMIN')")
+@PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
 public class SupplierController {
 
     private final SupplierService supplierService;
@@ -28,6 +28,7 @@ public class SupplierController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<PageableResponse<SupplierDTO>> getAllSuppliers(
             SupplierFilterDTO filterDTO,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC)

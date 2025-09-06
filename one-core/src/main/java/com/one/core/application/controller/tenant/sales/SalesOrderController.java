@@ -53,7 +53,6 @@ public class SalesOrderController {
     }
 
     @PostMapping("/{id}/confirm-process")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN')")
     public ResponseEntity<SalesOrderDTO> confirmAndProcessSalesOrder(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -62,21 +61,18 @@ public class SalesOrderController {
     }
 
     @PostMapping("/{id}/ship")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'WAREHOUSE_STAFF', 'SUPER_ADMIN')") // Roles que pueden despachar
     public ResponseEntity<SalesOrderDTO> shipOrder(@PathVariable Long id) {
         SalesOrderDTO shippedOrder = salesOrderService.shipOrder(id);
         return ResponseEntity.ok(shippedOrder);
     }
 
     @PostMapping("/{id}/deliver")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'WAREHOUSE_STAFF', 'SUPER_ADMIN')") // Roles que pueden marcar como entregado
     public ResponseEntity<SalesOrderDTO> deliverOrder(@PathVariable Long id) {
         SalesOrderDTO deliveredOrder = salesOrderService.deliverOrder(id);
         return ResponseEntity.ok(deliveredOrder);
     }
 
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('TENANT_ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN')") // Roles que pueden cancelar
     public ResponseEntity<SalesOrderDTO> cancelOrder(
             @PathVariable Long id,
             @AuthenticationPrincipal UserPrincipal currentUser) {
