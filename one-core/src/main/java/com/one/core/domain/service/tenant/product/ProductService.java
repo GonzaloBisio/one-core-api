@@ -48,7 +48,6 @@ public class ProductService {
 
     private static final Logger logger = LoggerFactory.getLogger(ProductService.class);
 
-
     private final ProductRepository productRepository;
     private final ProductCategoryRepository categoryRepository;
     private final SupplierRepository supplierRepository;
@@ -59,8 +58,6 @@ public class ProductService {
     private final AuthenticationFacade authenticationFacade;
     private final InventoryService inventoryService;
     private final UnitConversionService unitConversionService;
-
-
 
     @Autowired
     public ProductService(ProductRepository productRepository,
@@ -107,7 +104,7 @@ public class ProductService {
             }
         } else if (product.getProductType() == ProductType.PHYSICAL_GOOD || product.getProductType() == ProductType.PACKAGING) {
             if (StringUtils.hasText(product.getSku())) {
-                if(productRepository.existsBySku(product.getSku().trim())) {
+                if (productRepository.existsBySku(product.getSku().trim())) {
                     throw new DuplicateFieldException("Product SKU", product.getSku().trim());
                 }
             } else {
@@ -142,6 +139,7 @@ public class ProductService {
 
         try {
             Long userId = authenticationFacade.getCurrentAuthenticatedSystemUserId().orElse(null);
+            // Si es SERVICE/SUBSCRIPTION/DIGITAL, InventoryService lo ignora (no registra movimiento)
             inventoryService.recordInitialStockMovement(savedProduct, userId);
         } catch (Exception e) {
             logger.error("Failed to record initial stock movement for new product ID {}. Error: {}", savedProduct.getId(), e.getMessage());
@@ -304,13 +302,11 @@ public class ProductService {
             // Reglas de compatibilidad de unidad
             UnitOfMeasure uom = dto.getUnitOfMeasure();
             if (uom == UnitOfMeasure.PERCENTAGE) {
-                // 0..1
                 if (dto.getQuantityRequired().compareTo(BigDecimal.ZERO) <= 0
                         || dto.getQuantityRequired().compareTo(BigDecimal.ONE) > 0) {
                     throw new ValidationException("Para PERCENTAGE use valores entre 0 y 1 (p.ej., 0.90 = 90%).");
                 }
             } else if (uom != UnitOfMeasure.UNIT) {
-                // Si no es porcentaje ni UNIT, la magnitud debe coincidir con la del ingrediente
                 if (uom.getMagnitude() != ingredient.getUnitOfMeasure().getMagnitude()) {
                     throw new ValidationException(
                             "La unidad de la línea (" + uom + ") no es compatible con el ingrediente (" + ingredient.getUnitOfMeasure() + ")."
@@ -322,7 +318,7 @@ public class ProductService {
             r.setMainProduct(mainProduct);
             r.setIngredientProduct(ingredient);
             r.setQuantityRequired(dto.getQuantityRequired());
-            r.setUnitOfMeasure(uom); // importante
+            r.setUnitOfMeasure(uom);
             newRecipeItems.add(r);
         }
 
@@ -340,7 +336,7 @@ public class ProductService {
                     dto.setIngredientProductName(item.getIngredientProduct().getName());
                     dto.setIngredientProductSku(item.getIngredientProduct().getSku());
                     dto.setQuantityRequired(item.getQuantityRequired());
-                    dto.setUnitOfMeasure(item.getUnitOfMeasure()); // NUEVO
+                    dto.setUnitOfMeasure(item.getUnitOfMeasure());
                     return dto;
                 }).collect(Collectors.toList());
     }
@@ -372,7 +368,6 @@ public class ProductService {
                 throw new ValidationException("Packaging items must be products of type PACKAGING.");
             }
 
-
             ProductPackaging packagingItem = new ProductPackaging();
             packagingItem.setMainProduct(mainProduct);
             packagingItem.setPackagingProduct(packagingProduct);
@@ -396,5 +391,4 @@ public class ProductService {
                     return dto;
                 }).collect(Collectors.toList());
     }
-
 }

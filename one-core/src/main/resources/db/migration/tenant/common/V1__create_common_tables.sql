@@ -51,9 +51,14 @@ CREATE TABLE IF NOT EXISTS sales_orders (
     );
 
 CREATE TABLE IF NOT EXISTS sales_order_items (
-                                                 id BIGSERIAL PRIMARY KEY, sales_order_id BIGINT NOT NULL, product_id BIGINT NOT NULL,
-                                                 quantity NUMERIC(10, 3) NOT NULL, unit_price_at_sale NUMERIC(12, 2) NOT NULL,
-    discount_per_item NUMERIC(12, 2) DEFAULT 0.00, subtotal NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+                                                 id BIGSERIAL PRIMARY KEY,
+                                                 sales_order_id BIGINT NOT NULL,
+                                                 product_id BIGINT NOT NULL,
+                                                 quantity NUMERIC(10, 3) NOT NULL,
+    unit_price_at_sale NUMERIC(12, 2) NOT NULL,
+    discount_per_item NUMERIC(12, 2) DEFAULT 0.00,
+    subtotal NUMERIC(14,2) NOT NULL DEFAULT 0.00,
+    skip_auto_packaging BOOLEAN NOT NULL DEFAULT FALSE, -- <--- NUEVA COLUMNA
     CONSTRAINT fk_soi_sales_order FOREIGN KEY (sales_order_id) REFERENCES sales_orders (id) ON DELETE CASCADE,
     CONSTRAINT fk_soi_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE RESTRICT
     );

@@ -66,6 +66,7 @@ public class SalesOrderMapper {
         item.setQuantity(itemDto.getQuantity());
         item.setUnitPriceAtSale(itemDto.getUnitPrice()); // El DTO lo llama unitPrice
         item.setDiscountPerItem(itemDto.getDiscountPerItem() != null ? itemDto.getDiscountPerItem() : BigDecimal.ZERO);
+        item.setSkipAutoPackaging(Boolean.TRUE.equals(itemDto.getSkipAutoPackaging()));
         // El subtotal se calcula o se deja que la BD lo haga si es generated column
         return item;
     }

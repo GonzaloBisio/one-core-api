@@ -38,6 +38,10 @@ public class SalesOrderItem {
     @ColumnDefault("0.00")
     private BigDecimal discountPerItem = BigDecimal.ZERO;
 
+    @Column(name = "skip_auto_packaging", nullable = false)
+    private boolean skipAutoPackaging = false;
+
+
     // El subtotal se calcula en la entidad o se puede usar la columna generada de la BD
     // Para JPA, es mejor calcularlo en Java o usar @Formula si es simple.
     // La columna GENERATED de tu DDL es para la BD, Hibernate no la actualiza directamente.

@@ -12,4 +12,5 @@ public class SalesOrderItemRequestDTO {
     @NotNull @Positive private BigDecimal quantity;
     @DecimalMin("0.0") private BigDecimal unitPrice; // Precio al que se vende este ítem
     private BigDecimal discountPerItem; // Opcional
+    private Boolean skipAutoPackaging = false;
 }

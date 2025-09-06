@@ -1,6 +1,7 @@
 package com.one.core.application.controller.tenant.sales;
 
 import com.one.core.application.dto.tenant.response.PageableResponse;
+import com.one.core.application.dto.tenant.sales.QuickSaleRequestDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderFilterDTO;
 import com.one.core.application.dto.tenant.sales.SalesOrderRequestDTO;
@@ -78,6 +79,15 @@ public class SalesOrderController {
             @AuthenticationPrincipal UserPrincipal currentUser) {
         SalesOrderDTO cancelledOrder = salesOrderService.cancelOrder(id, currentUser);
         return ResponseEntity.ok(cancelledOrder);
+    }
+
+    @PostMapping("/quick")
+    @PreAuthorize("hasAnyRole('TENANT_ADMIN','SALES_PERSON','SUPER_ADMIN')")
+    public ResponseEntity<SalesOrderDTO> createQuickSale(
+            @Valid @RequestBody QuickSaleRequestDTO request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        SalesOrderDTO created = salesOrderService.createQuickSale(request, currentUser);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
 }
