@@ -195,17 +195,17 @@ public class InventoryService {
 
     @Transactional(readOnly = true)
     public Page<StockMovementDTO> getStockMovements(StockMovementFilterDTO filterDTO, Pageable pageable) {
-        Page<StockMovement> movementPage;
-        if (filterDTO != null && filterDTO.getProductId() != null) {
-            movementPage = stockMovementRepository.findByProductIdOrderByMovementDateDesc(filterDTO.getProductId(), pageable);
-        } else {
-            movementPage = stockMovementRepository.findAll(pageable);
-        }
 
-        List<StockMovementDTO> movementDTOs = movementPage.getContent().stream()
+        var spec = com.one.core.domain.service.tenant.inventory.criteria
+                .StockMovementSpecification.filterBy(filterDTO);
+
+        Page<StockMovement> movementPage = stockMovementRepository.findAll(spec, pageable);
+
+        var dtos = movementPage.getContent().stream()
                 .map(stockMovementMapper::toDTO)
-                .collect(Collectors.toList());
-        return new PageImpl<>(movementDTOs, pageable, movementPage.getTotalElements());
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, movementPage.getTotalElements());
     }
 
     /**

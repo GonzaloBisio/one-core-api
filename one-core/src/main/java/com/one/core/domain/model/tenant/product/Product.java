@@ -16,6 +16,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import static com.one.core.domain.service.common.NameCanonicalizer.canonical;
+
 @Entity
 @Table(name = "products")
 @Data
@@ -32,6 +34,9 @@ public class Product {
 
     @Column(nullable = false, length = 150)
     private String name;
+
+    @Column(name = "canonical_name", length = 160, unique = true)
+    private String canonicalName;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "product_type", nullable = false)
@@ -104,10 +109,12 @@ public class Product {
         updatedAt = LocalDateTime.now();
         if (purchasePrice == null) purchasePrice = BigDecimal.ZERO;
         if (salePrice == null) salePrice = BigDecimal.ZERO;
+        this.canonicalName = canonical(this.name);
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        this.canonicalName = canonical(this.name);
     }
 }

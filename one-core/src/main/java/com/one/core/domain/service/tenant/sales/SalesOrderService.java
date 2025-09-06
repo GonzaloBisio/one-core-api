@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.one.core.domain.service.common.NameCanonicalizer.canonical;
+
 @Service
 public class SalesOrderService {
 
@@ -123,7 +125,6 @@ public class SalesOrderService {
             }
 
             SalesOrderItem orderItem = salesOrderMapper.itemRequestDtoToEntity(itemDto, product);
-            // asegurar mapeo del flag por si el mapper no lo setea:
             orderItem.setSkipAutoPackaging(Boolean.TRUE.equals(itemDto.getSkipAutoPackaging()));
             orderItem.setSalesOrder(order);
             items.add(orderItem);
@@ -186,13 +187,13 @@ public class SalesOrderService {
     }
 
     // =========================
-    // Helpers de stock (FINAL)
+    // Helpers de stock
     // =========================
     private void validateStockAvailability(SalesOrder order) {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // 1) Validar stock del producto de la línea (incluye PACKAGING si se vende como ítem)
+            // valida stock si es stockeable (incluye PACKAGING vendido como ítem)
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD
                     || productSold.getProductType() == ProductType.COMPOUND
                     || productSold.getProductType() == ProductType.PACKAGING) {
@@ -205,7 +206,7 @@ public class SalesOrderService {
                 }
             }
 
-            // 2) Validar packaging automático SOLO si no se saltea
+            // packaging automático si no se saltea
             if (!item.isSkipAutoPackaging()) {
                 List<ProductPackaging> packagingItems =
                         productPackagingRepository.findByMainProductId(productSold.getId());
@@ -228,7 +229,7 @@ public class SalesOrderService {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // 1) Descontar producto de la línea (incluye PACKAGING si se vende como ítem)
+            // descuenta producto si es stockeable (incluye PACKAGING vendido como ítem)
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD
                     || productSold.getProductType() == ProductType.COMPOUND
                     || productSold.getProductType() == ProductType.PACKAGING) {
@@ -244,7 +245,7 @@ public class SalesOrderService {
                 );
             }
 
-            // 2) Descontar packaging automático SOLO si no se saltea
+            // descuenta packaging automático si no se saltea
             if (!item.isSkipAutoPackaging()) {
                 List<ProductPackaging> packagingItems =
                         productPackagingRepository.findByMainProductId(productSold.getId());
@@ -273,7 +274,7 @@ public class SalesOrderService {
         for (SalesOrderItem item : order.getItems()) {
             Product productSold = item.getProduct();
 
-            // 1) Devolver producto de la línea (incluye PACKAGING si se vendió como ítem)
+            // devuelve producto si es stockeable (incluye PACKAGING vendido como ítem)
             if (productSold.getProductType() == ProductType.PHYSICAL_GOOD
                     || productSold.getProductType() == ProductType.COMPOUND
                     || productSold.getProductType() == ProductType.PACKAGING) {
@@ -289,7 +290,7 @@ public class SalesOrderService {
                 );
             }
 
-            // 2) Devolver packaging automático SOLO si no se había salteado
+            // devuelve packaging automático si no se había salteado
             if (!item.isSkipAutoPackaging()) {
                 List<ProductPackaging> packagingItems =
                         productPackagingRepository.findByMainProductId(productSold.getId());
@@ -336,7 +337,7 @@ public class SalesOrderService {
     }
 
     // =========================
-    // Quick Sale (opcional)
+    // Quick Sale (con dedupe)
     // =========================
     @Transactional
     public SalesOrderDTO createQuickSale(QuickSaleRequestDTO req, UserPrincipal currentUser) {
@@ -361,16 +362,24 @@ public class SalesOrderService {
 
             if (it.getQuickProduct() != null) {
                 QuickProductDTO qp = it.getQuickProduct();
+                String canon = canonical(qp.getName());
 
-                ProductDTO p = new ProductDTO();
-                p.setName(qp.getName());
-                p.setProductType(ProductType.SERVICE); // sin stock
-                p.setUnitOfMeasure(qp.getUnitOfMeasure() != null ? qp.getUnitOfMeasure() : UnitOfMeasure.UNIT);
-                p.setCategoryId(qp.getCategoryId());
+                // 1) Buscar por nombre canónico (evita duplicados)
+                product = productRepository.findByCanonicalName(canon).orElse(null);
 
-                ProductDTO created = productService.createProduct(p);
-                product = productRepository.findById(created.getId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Product","id", created.getId()));
+                if (product == null) {
+                    // 2) Crear como SERVICE (venta sin stock). Si más adelante querés convertirlo, lo actualizás.
+                    ProductDTO p = new ProductDTO();
+                    p.setName(qp.getName());
+                    p.setProductType(ProductType.SERVICE);
+                    p.setUnitOfMeasure(qp.getUnitOfMeasure() != null ? qp.getUnitOfMeasure() : UnitOfMeasure.UNIT);
+                    p.setCategoryId(qp.getCategoryId());
+                    if (it.getUnitPrice() != null) p.setSalePrice(it.getUnitPrice());
+
+                    ProductDTO created = productService.createProduct(p);
+                    product = productRepository.findById(created.getId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Product","id", created.getId()));
+                }
             } else if (it.getProductId() != null) {
                 product = productRepository.findById(it.getProductId())
                         .orElseThrow(() -> new ResourceNotFoundException("Product","id", it.getProductId()));
@@ -384,7 +393,6 @@ public class SalesOrderService {
             soi.setQuantity(it.getQuantity());
             soi.setUnitPriceAtSale(it.getUnitPrice());
             soi.setSubtotal(it.getUnitPrice().multiply(it.getQuantity()));
-            // soportar también el flag (por si usás quick con productos stockeados):
             soi.setSkipAutoPackaging(Boolean.TRUE.equals(it.getSkipAutoPackaging()));
             items.add(soi);
 
@@ -393,8 +401,8 @@ public class SalesOrderService {
 
         order.setSubtotalAmount(total);
         order.setTotalAmount(total);
-
         order.setItems(items);
+
         SalesOrder saved = salesOrderRepository.save(order);
         return salesOrderMapper.toDTO(saved);
     }

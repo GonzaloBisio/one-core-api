@@ -8,6 +8,6 @@ import lombok.Data;
 public class ReportFilterDTO {
     private String transactionType;
 
-    @Schema(description = "Método de pago. Valores permitidos: DEBIT, CREDIT, TRANSFER, CASH")
+    @Schema(description = "Método de pago. Valores permitidos: DEBIT_CARD, CREDIT_CARD, TRANSFER, CASH, QR")
     private PaymentMethod paymentMethod;
 }

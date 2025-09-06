@@ -5,7 +5,7 @@ import com.one.core.application.dto.tenant.reports.PurchaseReportRow;
 import com.one.core.application.dto.tenant.reports.SalesReportRow;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.ss.util.PropertyTemplate;
+import org.apache.poi.ss.util.RegionUtil;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.ByteArrayInputStream;
@@ -19,14 +19,16 @@ public class ExcelReportGenerator {
 
     private static final IndexedColors COLOR_PRIMARY_DARK = IndexedColors.DARK_BLUE;
     private static final IndexedColors COLOR_ACCENT_GREEN = IndexedColors.SEA_GREEN;
-    private static final IndexedColors COLOR_ACCENT_RED = IndexedColors.RED;
-    private static final IndexedColors COLOR_FONT_LIGHT = IndexedColors.WHITE;
-    private static final IndexedColors COLOR_FONT_DARK = IndexedColors.BLACK;
-    private static final IndexedColors COLOR_FONT_SUBTLE = IndexedColors.GREY_50_PERCENT;
+    private static final IndexedColors COLOR_ACCENT_RED   = IndexedColors.RED;
+    private static final IndexedColors COLOR_FONT_LIGHT   = IndexedColors.WHITE;
+    private static final IndexedColors COLOR_FONT_DARK    = IndexedColors.BLACK;
+    private static final IndexedColors COLOR_FONT_SUBTLE  = IndexedColors.GREY_50_PERCENT;
     private static final String FONT_NAME = "Calibri";
 
     public ByteArrayInputStream generate(OperationalReportData data) throws IOException {
-        try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (XSSFWorkbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
             ReportStyles styles = new ReportStyles(workbook);
 
             createSummarySheet(workbook.createSheet("Resumen"), data, styles);
@@ -52,11 +54,13 @@ public class ExcelReportGenerator {
 
         createKpiCard(sheet, 4, 1, "INGRESOS TOTALES (VENTAS)", data.totalSales(), styles, styles.kpiValuePositive());
         createKpiCard(sheet, 4, 4, "COSTO DE MERCADERÍA VENDIDA", data.totalCostOfGoodsSold(), styles, styles.kpiValueNegative());
-        createKpiCard(sheet, 8, 1, "GANANCIA BRUTA (VENTAS - COSTO)", data.grossProfit(), styles, data.grossProfit().compareTo(BigDecimal.ZERO) >= 0 ? styles.kpiValuePositive() : styles.kpiValueNegative());
+        createKpiCard(sheet, 8, 1, "GANANCIA BRUTA (VENTAS - COSTO)", data.grossProfit(), styles,
+                data.grossProfit().compareTo(BigDecimal.ZERO) >= 0 ? styles.kpiValuePositive() : styles.kpiValueNegative());
         createKpiCard(sheet, 8, 4, "EGRESOS TOTALES (COMPRAS)", data.totalPurchases(), styles, styles.kpiValueNegative());
     }
 
-    private void createKpiCard(Sheet sheet, int row, int col, String label, BigDecimal value, ReportStyles styles, CellStyle valueStyle) {
+    private void createKpiCard(Sheet sheet, int row, int col, String label, BigDecimal value,
+                               ReportStyles styles, CellStyle valueStyle) {
         createCell(sheet, row, col, label, styles.kpiLabel());
         sheet.addMergedRegion(new CellRangeAddress(row, row, col, col + 1));
 
@@ -65,42 +69,50 @@ public class ExcelReportGenerator {
         createCell(sheet, row + 1, col, value.doubleValue(), valueStyle);
         sheet.addMergedRegion(new CellRangeAddress(row + 1, row + 2, col, col + 1));
 
-        PropertyTemplate pt = new PropertyTemplate();
-        pt.drawBorders(new CellRangeAddress(row, row + 2, col, col + 1), BorderStyle.THIN, COLOR_PRIMARY_DARK.getIndex(), BorderExtent.ALL);
-        pt.applyBorders(sheet);
+        // Bordes con RegionUtil (compatible con más versiones)
+        CellRangeAddress range = new CellRangeAddress(row, row + 2, col, col + 1);
+        RegionUtil.setBorderTop(BorderStyle.THIN, range, sheet);
+        RegionUtil.setBorderBottom(BorderStyle.THIN, range, sheet);
+        RegionUtil.setBorderLeft(BorderStyle.THIN, range, sheet);
+        RegionUtil.setBorderRight(BorderStyle.THIN, range, sheet);
     }
 
     private void createSalesDetailSheet(Sheet sheet, List<SalesReportRow> rows, ReportStyles styles) {
-        String[] headers = {"Fecha", "ID Orden", "Cliente", "Producto", "Cant.", "P. Venta", "Total Venta", "Costo", "Ganancia"};
+        String[] headers = {
+                "Fecha", "ID Orden", "Cliente", "Producto", "Cant.", "P. Venta",
+                "Total Venta", "Costo", "Ganancia", "Método Pago"
+        };
+
         sheet.createFreezePane(0, 1);
         Row headerRow = sheet.createRow(0);
         for (int i = 0; i < headers.length; i++) createCell(headerRow, i, headers[i], styles.header());
 
-        // <-- CAMBIO: Establecer anchos de columna fijos
-        sheet.setColumnWidth(0, 3500);  // Fecha
-        sheet.setColumnWidth(1, 2500);  // ID Orden
-        sheet.setColumnWidth(2, 8000);  // Cliente
-        sheet.setColumnWidth(3, 8000);  // Producto
-        sheet.setColumnWidth(4, 2500);  // Cant.
-        sheet.setColumnWidth(5, 4000);  // P. Venta
-        sheet.setColumnWidth(6, 4000);  // Total Venta
-        sheet.setColumnWidth(7, 4000);  // Costo
-        sheet.setColumnWidth(8, 4000);  // Ganancia
+        sheet.setColumnWidth(0, 3500);
+        sheet.setColumnWidth(1, 2500);
+        sheet.setColumnWidth(2, 8000);
+        sheet.setColumnWidth(3, 8000);
+        sheet.setColumnWidth(4, 2500);
+        sheet.setColumnWidth(5, 4000);
+        sheet.setColumnWidth(6, 4000);
+        sheet.setColumnWidth(7, 4000);
+        sheet.setColumnWidth(8, 4000);
+        sheet.setColumnWidth(9, 5000);
 
         int rowIdx = 1;
-        for (SalesReportRow rowData : rows) {
+        for (SalesReportRow r : rows) {
             Row row = sheet.createRow(rowIdx++);
-            int col = 0;
-            // <-- CAMBIO: Aplicar estilos centrados
-            createCell(row, col++, rowData.date(), styles.dateCentered());
-            createCell(row, col++, rowData.orderId(), styles.centered());
-            createCell(row, col++, rowData.customer(), styles.normal()); // Nombres a la izquierda se ve mejor
-            createCell(row, col++, rowData.product(), styles.normal());  // Nombres a la izquierda se ve mejor
-            createCell(row, col++, rowData.quantity().doubleValue(), styles.centered());
-            createCell(row, col++, rowData.unitPrice().doubleValue(), styles.currencyCentered());
-            createCell(row, col++, rowData.totalSale().doubleValue(), styles.currencyCentered());
-            createCell(row, col++, rowData.totalCost().doubleValue(), styles.currencyCentered());
-            createCell(row, col++, rowData.profit().doubleValue(), rowData.profit().compareTo(BigDecimal.ZERO) >= 0 ? styles.currencyPositiveCentered() : styles.currencyNegativeCentered());
+            int c = 0;
+            createCell(row, c++, r.date(), styles.dateCentered());
+            createCell(row, c++, r.orderId(), styles.centered());
+            createCell(row, c++, r.customer(), styles.normal());
+            createCell(row, c++, r.product(), styles.normal());
+            createCell(row, c++, r.quantity().doubleValue(), styles.centered());
+            createCell(row, c++, r.unitPrice().doubleValue(), styles.currencyCentered());
+            createCell(row, c++, r.totalSale().doubleValue(), styles.currencyCentered());
+            createCell(row, c++, r.totalCost().doubleValue(), styles.currencyCentered());
+            createCell(row, c++, r.profit().doubleValue(),
+                    r.profit().compareTo(BigDecimal.ZERO) >= 0 ? styles.currencyPositiveCentered() : styles.currencyNegativeCentered());
+            createCell(row, c, r.paymentMethod(), styles.centered());
         }
 
         if (!rows.isEmpty()) {
@@ -119,27 +131,25 @@ public class ExcelReportGenerator {
         Row headerRow = sheet.createRow(0);
         for (int i = 0; i < headers.length; i++) createCell(headerRow, i, headers[i], styles.header());
 
-        // <-- CAMBIO: Establecer anchos de columna fijos
-        sheet.setColumnWidth(0, 3500); // Fecha
-        sheet.setColumnWidth(1, 2500); // ID Orden
-        sheet.setColumnWidth(2, 8000); // Proveedor
-        sheet.setColumnWidth(3, 8000); // Producto
-        sheet.setColumnWidth(4, 2500); // Cantidad
-        sheet.setColumnWidth(5, 4000); // Costo Unitario
-        sheet.setColumnWidth(6, 4000); // Total Costo
+        sheet.setColumnWidth(0, 3500);
+        sheet.setColumnWidth(1, 2500);
+        sheet.setColumnWidth(2, 8000);
+        sheet.setColumnWidth(3, 8000);
+        sheet.setColumnWidth(4, 2500);
+        sheet.setColumnWidth(5, 4000);
+        sheet.setColumnWidth(6, 4000);
 
         int rowIdx = 1;
-        for (PurchaseReportRow rowData : rows) {
+        for (PurchaseReportRow r : rows) {
             Row row = sheet.createRow(rowIdx++);
-            int col = 0;
-            // <-- CAMBIO: Aplicar estilos centrados
-            createCell(row, col++, rowData.date(), styles.dateCentered());
-            createCell(row, col++, rowData.orderId(), styles.centered());
-            createCell(row, col++, rowData.supplier(), styles.normal()); // Nombres a la izquierda se ve mejor
-            createCell(row, col++, rowData.product(), styles.normal());  // Nombres a la izquierda se ve mejor
-            createCell(row, col++, rowData.quantity().doubleValue(), styles.centered());
-            createCell(row, col++, rowData.unitCost().doubleValue(), styles.currencyCentered());
-            createCell(row, col++, rowData.totalCost().doubleValue(), styles.currencyCentered());
+            int c = 0;
+            createCell(row, c++, r.date(), styles.dateCentered());
+            createCell(row, c++, r.orderId(), styles.centered());
+            createCell(row, c++, r.supplier(), styles.normal());
+            createCell(row, c++, r.product(), styles.normal());
+            createCell(row, c++, r.quantity().doubleValue(), styles.centered());
+            createCell(row, c++, r.unitCost().doubleValue(), styles.currencyCentered());
+            createCell(row, c++, r.totalCost().doubleValue(), styles.currencyCentered());
         }
 
         if (!rows.isEmpty()) {
@@ -158,24 +168,24 @@ public class ExcelReportGenerator {
 
     private Cell createCell(Row row, int c, Object value, CellStyle style) {
         Cell cell = row.createCell(c);
-        if (value instanceof String) cell.setCellValue((String) value);
-        else if (value instanceof Double) cell.setCellValue((Double) value);
-        else if (value instanceof Integer) cell.setCellValue((Integer) value);
-        else if (value instanceof Long) cell.setCellValue((Long) value);
-        else if (value instanceof LocalDate) cell.setCellValue((LocalDate) value);
+        if (value instanceof String s) cell.setCellValue(s);
+        else if (value instanceof Double d) cell.setCellValue(d);
+        else if (value instanceof Integer i) cell.setCellValue(i);
+        else if (value instanceof Long l) cell.setCellValue(l);
+        else if (value instanceof LocalDate d2) cell.setCellValue(d2);
         if (style != null) cell.setCellStyle(style);
         return cell;
     }
 
-    private void addFormula(Row row, int col, String formulaType, int lastDataRow, CellStyle style) {
+    private void addFormula(Row row, int col, String fn, int lastDataRow, CellStyle style) {
         char colLetter = (char) ('A' + col);
-        String formula = String.format("%s(%c2:%c%d)", formulaType, colLetter, colLetter, lastDataRow);
+        String formula = String.format("%s(%c2:%c%d)", fn, colLetter, colLetter, lastDataRow);
         Cell cell = row.createCell(col);
         cell.setCellFormula(formula);
         cell.setCellStyle(style);
     }
 
-    // <-- CAMBIO: Añadidos nuevos estilos centrados
+    // -------- estilos --------
     private record ReportStyles(
             CellStyle title, CellStyle subtle, CellStyle header, CellStyle normal, CellStyle centered,
             CellStyle kpiLabel, CellStyle kpiValuePositive, CellStyle kpiValueNegative,
@@ -193,16 +203,16 @@ public class ExcelReportGenerator {
                     createCurrencyStyle(wb, false, COLOR_ACCENT_RED, true), createDateStyle(wb, true)
             );
         }
-        private static CellStyle createBaseStyle(Workbook wb) { CellStyle style = wb.createCellStyle(); style.setFont(createFont(wb, 11, false, COLOR_FONT_DARK)); return style; }
-        private static Font createFont(Workbook wb, int size, boolean isBold, IndexedColors color) { Font font = wb.createFont(); font.setFontName(FONT_NAME); font.setFontHeightInPoints((short) size); font.setBold(isBold); font.setColor(color.getIndex()); return font; }
-        private static CellStyle createTitleStyle(Workbook wb) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 18, true, COLOR_PRIMARY_DARK)); return style; }
-        private static CellStyle createSubtleStyle(Workbook wb) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 9, false, COLOR_FONT_SUBTLE)); style.setAlignment(HorizontalAlignment.RIGHT); return style; }
-        private static CellStyle createHeaderStyle(Workbook wb) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 11, true, COLOR_FONT_LIGHT)); style.setFillForegroundColor(COLOR_PRIMARY_DARK.getIndex()); style.setFillPattern(FillPatternType.SOLID_FOREGROUND); style.setAlignment(HorizontalAlignment.CENTER); return style; }
+        private static CellStyle createBaseStyle(Workbook wb) { CellStyle s = wb.createCellStyle(); s.setFont(createFont(wb, 11, false, COLOR_FONT_DARK)); return s; }
+        private static Font createFont(Workbook wb, int size, boolean bold, IndexedColors color) { Font f = wb.createFont(); f.setFontName(FONT_NAME); f.setFontHeightInPoints((short) size); f.setBold(bold); f.setColor(color.getIndex()); return f; }
+        private static CellStyle createTitleStyle(Workbook wb) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 18, true, COLOR_PRIMARY_DARK)); return s; }
+        private static CellStyle createSubtleStyle(Workbook wb) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 9, false, COLOR_FONT_SUBTLE)); s.setAlignment(HorizontalAlignment.RIGHT); return s; }
+        private static CellStyle createHeaderStyle(Workbook wb) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 11, true, COLOR_FONT_LIGHT)); s.setFillForegroundColor(COLOR_PRIMARY_DARK.getIndex()); s.setFillPattern(FillPatternType.SOLID_FOREGROUND); s.setAlignment(HorizontalAlignment.CENTER); return s; }
         private static CellStyle createNormalStyle(Workbook wb) { return createBaseStyle(wb); }
-        private static CellStyle createCenteredStyle(Workbook wb) { CellStyle style = createBaseStyle(wb); style.setAlignment(HorizontalAlignment.CENTER); return style; }
-        private static CellStyle createKpiLabelStyle(Workbook wb) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 9, false, COLOR_FONT_SUBTLE)); style.setAlignment(HorizontalAlignment.CENTER); style.setVerticalAlignment(VerticalAlignment.BOTTOM); return style; }
-        private static CellStyle createKpiValueStyle(Workbook wb, IndexedColors color) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 22, true, color)); style.setDataFormat(wb.createDataFormat().getFormat("$ #,##0.00")); style.setAlignment(HorizontalAlignment.CENTER); style.setVerticalAlignment(VerticalAlignment.CENTER); return style; }
-        private static CellStyle createCurrencyStyle(Workbook wb, boolean isBold, IndexedColors color, boolean isCentered) { CellStyle style = createBaseStyle(wb); style.setFont(createFont(wb, 11, isBold, color)); style.setDataFormat(wb.createDataFormat().getFormat("$ #,##0.00")); if (isCentered) style.setAlignment(HorizontalAlignment.CENTER); return style; }
-        private static CellStyle createDateStyle(Workbook wb, boolean isCentered) { CellStyle style = createBaseStyle(wb); style.setDataFormat(wb.createDataFormat().getFormat("dd/mm/yyyy")); if (isCentered) style.setAlignment(HorizontalAlignment.CENTER); return style; }
+        private static CellStyle createCenteredStyle(Workbook wb) { CellStyle s = createBaseStyle(wb); s.setAlignment(HorizontalAlignment.CENTER); return s; }
+        private static CellStyle createKpiLabelStyle(Workbook wb) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 9, false, COLOR_FONT_SUBTLE)); s.setAlignment(HorizontalAlignment.CENTER); s.setVerticalAlignment(VerticalAlignment.BOTTOM); return s; }
+        private static CellStyle createKpiValueStyle(Workbook wb, IndexedColors color) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 22, true, color)); s.setDataFormat(wb.createDataFormat().getFormat("$ #,##0.00")); s.setAlignment(HorizontalAlignment.CENTER); s.setVerticalAlignment(VerticalAlignment.CENTER); return s; }
+        private static CellStyle createCurrencyStyle(Workbook wb, boolean bold, IndexedColors color, boolean centered) { CellStyle s = createBaseStyle(wb); s.setFont(createFont(wb, 11, bold, color)); s.setDataFormat(wb.createDataFormat().getFormat("$ #,##0.00")); if (centered) s.setAlignment(HorizontalAlignment.CENTER); return s; }
+        private static CellStyle createDateStyle(Workbook wb, boolean centered) { CellStyle s = createBaseStyle(wb); s.setDataFormat(wb.createDataFormat().getFormat("dd/mm/yyyy")); if (centered) s.setAlignment(HorizontalAlignment.CENTER); return s; }
     }
 }

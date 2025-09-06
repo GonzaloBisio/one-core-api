@@ -42,11 +42,12 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('TENANT_USER','TENANT_ADMIN','SUPER_ADMIN')")
     public ResponseEntity<InputStreamResource> getOperationalSummaryReport(
             @RequestParam @Pattern(regexp = "DAILY|WEEKLY|MONTHLY", message = "El tipo de reporte debe ser DAILY, WEEKLY, o MONTHLY") String type,
-            @RequestParam("date") String dateString) {
+            @RequestParam("date") String dateString,
+            @ParameterObject @Valid ReportFilterDTO filter) {
 
         LocalDate date = LocalDate.parse(dateString, DateTimeFormatter.ISO_LOCAL_DATE);
 
-        ByteArrayInputStream bis = reportService.generateOperationalSummaryReport(type, date);
+        ByteArrayInputStream bis = reportService.generateOperationalSummaryReport(type, date, filter);
 
         HttpHeaders headers = new HttpHeaders();
         String typeFormatted = type.substring(0, 1).toUpperCase() + type.substring(1).toLowerCase();

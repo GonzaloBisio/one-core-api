@@ -12,5 +12,6 @@ public record SalesReportRow(
         BigDecimal unitPrice,
         BigDecimal totalSale,
         BigDecimal totalCost,
-        BigDecimal profit
+        BigDecimal profit,
+        String paymentMethod
 ) {}
