@@ -97,7 +97,9 @@ public class TenantAdminService {
             case DISTRIBUTION:
                 migrationLocations.add("classpath:db/migration/tenant/distribution");
                 break;
-            // Añadir más casos aquí
+            case GYM:
+                migrationLocations.add("classpath:db/migration/tenant/gym");
+                break;
         }
 
         // Ejecutar Flyway con las carpetas seleccionadas

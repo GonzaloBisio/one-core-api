@@ -81,7 +81,7 @@ public class Product {
     @Column(name = "image_url", length = 255)
     private String imageUrl;
 
-    @Formula("(SELECT CASE WHEN COUNT(pp.id) > 0 THEN TRUE ELSE FALSE END FROM product_packaging pp WHERE pp.main_product_id = id)")
+    @Formula("has_packaging(id)")
     private boolean hasPackaging;
 
     @CreatedBy
