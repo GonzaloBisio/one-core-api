@@ -178,3 +178,195 @@ CREATE TABLE IF NOT EXISTS bookings (
     );
 CREATE INDEX IF NOT EXISTS ix_bookings_session    ON bookings (session_id, status);
 CREATE INDEX IF NOT EXISTS ix_bookings_membership ON bookings (membership_id);
+
+-- -----------------------------------------------------------------
+-- 7) TURNOS (Sistema de citas personalizadas)
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS turnos (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    instructor_id BIGINT,
+    room_id BIGINT,
+    fecha_hora TIMESTAMPTZ NOT NULL,
+    duracion TIME NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'BOOKED',
+    tipo_turno VARCHAR(100),
+    observaciones TEXT,
+    is_recurring BOOLEAN NOT NULL DEFAULT FALSE,
+    recurring_pattern VARCHAR(50),
+    recurring_end_date TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_turnos_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
+    CONSTRAINT fk_turnos_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id),
+    CONSTRAINT fk_turnos_room FOREIGN KEY (room_id) REFERENCES rooms(id),
+    CONSTRAINT chk_turnos_status CHECK (status IN ('BOOKED', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW'))
+);
+
+-- Índices para optimizar consultas de turnos
+CREATE INDEX IF NOT EXISTS idx_turnos_customer_id ON turnos(customer_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_instructor_id ON turnos(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_room_id ON turnos(room_id);
+CREATE INDEX IF NOT EXISTS idx_turnos_fecha_hora ON turnos(fecha_hora);
+CREATE INDEX IF NOT EXISTS idx_turnos_status ON turnos(status);
+
+-- -----------------------------------------------------------------
+-- 8) PLANES DE ENTRENAMIENTO
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS planes_entrenamiento (
+    id BIGSERIAL PRIMARY KEY,
+    nombre VARCHAR(150) NOT NULL,
+    descripcion TEXT,
+    nivel_dificultad VARCHAR(20),
+    duracion_semanas INTEGER,
+    objetivo VARCHAR(100),
+    is_public BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    instructor_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_planes_entrenamiento_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id),
+    CONSTRAINT chk_planes_entrenamiento_nivel CHECK (nivel_dificultad IN ('PRINCIPIANTE', 'INTERMEDIO', 'AVANZADO')),
+    CONSTRAINT chk_planes_entrenamiento_objetivo CHECK (objetivo IN ('PÉRDIDA DE PESO', 'GANANCIA DE MÚSCULO', 'RESISTENCIA', 'FLEXIBILIDAD', 'FUNCIONAL', 'COMPETICIÓN'))
+);
+
+-- Índices para optimizar consultas de planes
+CREATE INDEX IF NOT EXISTS idx_planes_entrenamiento_instructor_id ON planes_entrenamiento(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_planes_entrenamiento_is_public ON planes_entrenamiento(is_public);
+CREATE INDEX IF NOT EXISTS idx_planes_entrenamiento_is_active ON planes_entrenamiento(is_active);
+CREATE INDEX IF NOT EXISTS idx_planes_entrenamiento_nivel_dificultad ON planes_entrenamiento(nivel_dificultad);
+CREATE INDEX IF NOT EXISTS idx_planes_entrenamiento_objetivo ON planes_entrenamiento(objetivo);
+
+-- -----------------------------------------------------------------
+-- 9) VIDEOS DE ENTRENAMIENTO
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS videos_entrenamiento (
+    id BIGSERIAL PRIMARY KEY,
+    titulo VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    url_video VARCHAR(500),
+    archivo_video VARCHAR(500),
+    duracion_segundos INTEGER,
+    nivel_dificultad VARCHAR(20),
+    musculos_trabajados VARCHAR(200),
+    equipamiento_necesario VARCHAR(300),
+    is_public BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    orden INTEGER,
+    instructor_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_videos_entrenamiento_instructor FOREIGN KEY (instructor_id) REFERENCES instructors(id),
+    CONSTRAINT chk_videos_entrenamiento_nivel CHECK (nivel_dificultad IN ('PRINCIPIANTE', 'INTERMEDIO', 'AVANZADO'))
+);
+
+-- Índices para optimizar consultas de videos
+CREATE INDEX IF NOT EXISTS idx_videos_entrenamiento_instructor_id ON videos_entrenamiento(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_videos_entrenamiento_is_public ON videos_entrenamiento(is_public);
+CREATE INDEX IF NOT EXISTS idx_videos_entrenamiento_is_active ON videos_entrenamiento(is_active);
+CREATE INDEX IF NOT EXISTS idx_videos_entrenamiento_nivel_dificultad ON videos_entrenamiento(nivel_dificultad);
+
+-- -----------------------------------------------------------------
+-- 10) EJERCICIOS DE PLAN
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ejercicios_plan (
+    id BIGSERIAL PRIMARY KEY,
+    plan_entrenamiento_id BIGINT NOT NULL,
+    nombre_ejercicio VARCHAR(150) NOT NULL,
+    descripcion TEXT,
+    series INTEGER,
+    repeticiones VARCHAR(50),
+    peso_sugerido VARCHAR(100),
+    descanso_segundos INTEGER,
+    musculos_trabajados VARCHAR(200),
+    equipamiento VARCHAR(200),
+    orden INTEGER,
+    dificultad VARCHAR(20),
+    video_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_ejercicios_plan_plan FOREIGN KEY (plan_entrenamiento_id) REFERENCES planes_entrenamiento(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ejercicios_plan_video FOREIGN KEY (video_id) REFERENCES videos_entrenamiento(id) ON DELETE SET NULL,
+    CONSTRAINT chk_ejercicios_plan_dificultad CHECK (dificultad IN ('FÁCIL', 'MEDIO', 'DIFÍCIL'))
+);
+
+-- Índices para optimizar consultas de ejercicios
+CREATE INDEX IF NOT EXISTS idx_ejercicios_plan_plan_id ON ejercicios_plan(plan_entrenamiento_id);
+CREATE INDEX IF NOT EXISTS idx_ejercicios_plan_video_id ON ejercicios_plan(video_id);
+CREATE INDEX IF NOT EXISTS idx_ejercicios_plan_orden ON ejercicios_plan(plan_entrenamiento_id, orden);
+
+-- -----------------------------------------------------------------
+-- 11) NOTIFICACIONES DE MEMBRESÍA
+-- -----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notificaciones_membresia (
+    id BIGSERIAL PRIMARY KEY,
+    customer_id BIGINT NOT NULL,
+    membership_id BIGINT NOT NULL,
+    tipo_notificacion VARCHAR(50) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
+    mensaje TEXT,
+    fecha_vencimiento TIMESTAMPTZ,
+    dias_restantes INTEGER,
+    is_enviada BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_envio TIMESTAMPTZ,
+    canal_envio VARCHAR(20),
+    is_leida BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha_lectura TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_notificaciones_customer FOREIGN KEY (customer_id) REFERENCES customers(id),
+    CONSTRAINT fk_notificaciones_membership FOREIGN KEY (membership_id) REFERENCES memberships(id),
+    CONSTRAINT chk_notificaciones_tipo CHECK (tipo_notificacion IN ('VENCIMIENTO_5_DIAS', 'VENCIMIENTO_10_DIAS', 'VENCIDA', 'RENOVACION_EXITOSA')),
+    CONSTRAINT chk_notificaciones_canal CHECK (canal_envio IN ('EMAIL', 'SMS', 'PUSH', 'IN_APP'))
+);
+
+-- Índices para optimizar consultas de notificaciones
+CREATE INDEX IF NOT EXISTS idx_notificaciones_customer_id ON notificaciones_membresia(customer_id);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_membership_id ON notificaciones_membresia(membership_id);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_tipo ON notificaciones_membresia(tipo_notificacion);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_is_enviada ON notificaciones_membresia(is_enviada);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_is_leida ON notificaciones_membresia(is_leida);
+
+-- -----------------------------------------------------------------
+-- TRIGGERS PARA ACTUALIZAR updated_at AUTOMÁTICAMENTE
+-- -----------------------------------------------------------------
+
+-- Función para actualizar updated_at
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Triggers para las nuevas tablas
+CREATE TRIGGER trigger_update_turnos_updated_at
+    BEFORE UPDATE ON turnos
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trigger_update_planes_entrenamiento_updated_at
+    BEFORE UPDATE ON planes_entrenamiento
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trigger_update_videos_entrenamiento_updated_at
+    BEFORE UPDATE ON videos_entrenamiento
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trigger_update_ejercicios_plan_updated_at
+    BEFORE UPDATE ON ejercicios_plan
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trigger_update_notificaciones_membresia_updated_at
+    BEFORE UPDATE ON notificaciones_membresia
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at();

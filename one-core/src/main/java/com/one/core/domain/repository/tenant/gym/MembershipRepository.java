@@ -1,6 +1,7 @@
 package com.one.core.domain.repository.tenant.gym;
 
 
+import com.one.core.domain.model.enums.gym.MembershipStatus;
 import com.one.core.domain.model.tenant.gym.Membership;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -14,5 +15,6 @@ import java.util.List;
 public interface MembershipRepository extends JpaRepository<Membership, Long> {
     List<Membership> findByCustomerIdAndStatus(Long customerId, com.one.core.domain.model.enums.gym.MembershipStatus status);
     Page<Membership> findByCustomerId(Long customerId, Pageable pageable);
+    List<Membership> findByStatusAndEndDateIsNotNull(MembershipStatus active);
 
 }

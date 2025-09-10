@@ -23,6 +23,9 @@ jwt:
   secret: "EsteEsUnSecretoDeDesarrolloLargoYFacilDeRecordarPeroNoParaProduccion" # ¡Cambia esto!
   # expiration.ms, issuer, header, prefix se heredan si no los sobreescribes
 
+# Multi-tenancy configuration
+TENANT_SCHEMA: public
+
 # Logging más verboso para desarrollo
 logging:
   level:
